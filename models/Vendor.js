@@ -8,18 +8,17 @@ const vendorSchema = new mongoose.Schema(
 
     category: {
       type: String,
-      required: true
+      required: true,
     },
 
     gstNumber: { type: String, required: true },
     verificationDoc: { type: String, required: true },
 
-
     email: {
       type: String,
       required: true,
       unique: true,
-      lowercase: true
+      lowercase: true,
     },
     password: { type: String, required: true },
 
@@ -28,7 +27,7 @@ const vendorSchema = new mongoose.Schema(
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
-      default: "pending"
+      default: "pending",
     },
 
     location: { type: String },
@@ -41,16 +40,16 @@ const vendorSchema = new mongoose.Schema(
 
     gallery: {
       type: [String],
-      default: []
+      default: [],
     },
 
     businessHours: [
       {
         day: { type: String, required: true },
         start: { type: String }, // "09:00"
-        end: { type: String },   // "17:00"
-        closed: { type: Boolean, default: false }
-      }
+        end: { type: String }, // "17:00"
+        closed: { type: Boolean, default: false },
+      },
     ],
 
     services: {
@@ -59,35 +58,33 @@ const vendorSchema = new mongoose.Schema(
           name: {
             type: String,
             required: true,
-            trim: true
+            trim: true,
           },
           icon: {
             type: String,
             enum: ["⚙️", "🔧", "🏁", "📊", "✏️", "📈", "⚡", "🛡️"],
-            required: true
-          }
-        }
+            required: true,
+          },
+        },
       ],
-      default: []
+      default: [],
     },
 
     projects: [
-  {
-    title: { type: String, required: true },
-    desc: { type: String },
-    image: { type: String }, // Cloudinary URL
-    createdAt: { type: Date, default: Date.now }
-  }
-],
-
-
+      {
+        title: { type: String, required: true },
+        desc: { type: String },
+        image: { type: String }, // Cloudinary URL
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
 
     createdAt: {
       type: Date,
       default: Date.now,
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Vendor", vendorSchema);

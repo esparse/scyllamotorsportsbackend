@@ -1,5 +1,6 @@
 const sendMail = require("../utils/mailer");
 const vendorModel = require("../models/Vendor");
+const Subscription = require("../models/Subscription");
 
 // contact page form
 const sendContactMessage = async (req, res) => {
@@ -35,12 +36,20 @@ const vendorEnquiryMessage = async (req, res) => {
     quantity,
   } = req.body;
 
-  if (    !name || !email || !subject || !message || !team_name || !competition_type || !quantity) {
-    return res.status(400).json({ error: "All fields are required", });
+  if (
+    !name ||
+    !email ||
+    !subject ||
+    !message ||
+    !team_name ||
+    !competition_type ||
+    !quantity
+  ) {
+    return res.status(400).json({ error: "All fields are required" });
   }
 
   try {
-      const vendor = await vendorModel.findOne({ _id: req.body.vendor_id });
+    const vendor = await vendorModel.findOne({ _id: req.body.vendor_id });
     await sendMail({
       to: vendor ? vendor.email : process.env.EMAIL_USER, // send to vendor if vendor_id is provided and valid, otherwise send to default contact email
       subject: `Vendor Enquiry from ${name}: ${subject}`,
@@ -55,13 +64,15 @@ const vendorEnquiryMessage = async (req, res) => {
       message: "Enquiry sent successfully",
     });
   } catch (err) {
-    return res.status(500).json({error: "Failed to send enquiry",details: err.message,});
+    return res
+      .status(500)
+      .json({ error: "Failed to send enquiry", details: err.message });
   }
 };
 
 // product overview quote request form
 const sendQuoteRequest = async (req, res) => {
-  const { name, email, subject, message, inquiry_type,} = req.body;
+  const { name, email, subject, message, inquiry_type } = req.body;
 
   if (!name || !email || !subject || !message || !inquiry_type) {
     return res.status(400).json({ error: "All fields are required" });
@@ -81,12 +92,38 @@ const sendQuoteRequest = async (req, res) => {
       message: "Quote request sent successfully",
     });
   } catch (err) {
-    return res.status(500).json({error: "Failed to send quote request",details: err.message,});
+    return res
+      .status(500)
+      .json({ error: "Failed to send quote request", details: err.message });
+  }
+};
+
+// Subsctiption
+const subcriptionEmail = async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: "Email is required" });
+  }
+
+  try {
+    const existing = await Subscription.findOne({ email });
+    if (existing) {
+      return res.status(400).json({ error: "Email is already subscribed" });
+    }
+
+    const subscription = new Subscription({ email });
+    await subscription.save();
+    return res.status(200).json({ message: "Subscribed successfully" });
+  } catch (err) {
+    return res
+      .status(500)
+      .json({ error: "Failed to subscribe", message: err.message });
   }
 };
 
 module.exports = {
   sendContactMessage,
   vendorEnquiryMessage,
-  sendQuoteRequest
+  sendQuoteRequest,
+  subcriptionEmail,
 };

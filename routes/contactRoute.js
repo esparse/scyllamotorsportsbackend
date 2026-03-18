@@ -15,4 +15,7 @@ router.post("/vendor-enquiry", vendorEnquiryMessage);
 // vendor quote request form
 router.post("/vendor-quote", sendQuoteRequest);
 
+// subscription for updates and newsletters
+router.post("/subscribe", subcriptionEmail);
+
 module.exports = router;
