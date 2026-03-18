@@ -29,7 +29,7 @@ app.use(
   })
 );
 
-// app.use(cors({ origin: "http://localhost:5173", credentials: true }));
+app.use(cors({ origin: "http://localhost:5173", credentials: true }));
 
 
 mongoose.connect(process.env.MONGO_URI)
@@ -56,6 +56,9 @@ app.use("/api/products", require('./routes/productRoutes'));
 app.use('/api/member', require("./routes/memberRoutes"));
 
 app.use("/api/chat", chatRoutes);
+
+
+app.use('/api/contact', require("./routes/contactRoute"));
 
 // app.use('/api/activity', require("./routes/activityRoutes"))
 
@@ -91,6 +94,9 @@ app.use("/api/chat", chatRoutes);
 
 // require("./socket/chatSocket")(io);
 
+app.get("/", (req, res) => {
+  res.send("Welcome to Scylla Platform API");
+});
 
 
 app.listen(5000, () => {

@@ -8,7 +8,6 @@ const { getAdminDashboardStats } = require("../controllers/adminDashboardControl
 
 
 
-
 // Admin Login 
 router.post("/login", adminCtrl.adminLogin);
 
@@ -23,12 +22,14 @@ router.get("/pending",adminAuth, adminCtrl.getPendingUsers);
 // Approve / Reject Teams 
 // router.put("/team/:id/approve", adminAuth, adminCtrl.approveTeam);
 router.put("/team/:id/approve",adminAuth, adminCtrl.approveTeam);
+
 // router.put("/team/:id/reject", adminAuth, adminCtrl.rejectTeam);
 router.put("/team/:id/reject",adminAuth, adminCtrl.rejectTeam);
 
 // Approve Vendors 
 // router.put("/vendor/:id/approve", adminAuth, adminCtrl.approveVendor);
 router.put("/vendor/:id/approve", adminCtrl.approveVendor);
+
 // reject vendor
 // router.put("/vendor/:id/reject", adminAuth,adminCtrl.rejectVendor);
 router.put("/vendor/:id/reject", adminCtrl.rejectVendor);
@@ -36,8 +37,10 @@ router.put("/vendor/:id/reject", adminCtrl.rejectVendor);
 //Pending Products
 // router.get("/products/pending", adminAuth, adminCtrl.getPendingProducts);
 router.get("/products/pending",adminAuth, adminCtrl.getPendingProducts);
+
 // router.put("/products/:id/approve", adminAuth, adminCtrl.approveProduct);
 router.put("/products/:id/approve", adminCtrl.approveProduct);
+
 // router.put("/products/:id/reject", adminAuth, adminCtrl.rejectProduct);
 router.put("/products/:id/reject", adminCtrl.rejectProduct);
 

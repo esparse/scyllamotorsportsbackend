@@ -113,7 +113,6 @@ exports.registerTeam = async (req, res) => {
         lng
       }
 
-
     });
 
 
