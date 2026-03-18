@@ -12,9 +12,9 @@ const sendContactMessage = async (req, res) => {
   try {
     const sendMail = require("../utils/mailer");
     await sendMail({
-      to: process.env.CONTACT_EMAIL,
+      to: process.env.EMAIL_USER,
       subject: `Contact Us Message from ${name}: ${subject}`,
-      message: `From: ${name} (${email})\n\n${message}`,
+      text: `From: ${name} (${email})\n\n${message}`,
     });
     return res.status(200).json({ message: "Email sent successfully" });
   } catch (err) {
@@ -24,7 +24,7 @@ const sendContactMessage = async (req, res) => {
   }
 };
 
-// particular vendor enquiry form
+// particular product enquiry form for vendor
 const vendorEnquiryMessage = async (req, res) => {
   const {
     name,
@@ -53,11 +53,7 @@ const vendorEnquiryMessage = async (req, res) => {
     await sendMail({
       to: vendor ? vendor.email : process.env.EMAIL_USER, // send to vendor if vendor_id is provided and valid, otherwise send to default contact email
       subject: `Vendor Enquiry from ${name}: ${subject}`,
-      message: `Team: ${team_name}
-                Contact: ${name} (${email})
-                Competition: ${competition_type}
-                Quantity: ${quantity}
-                Message: ${message}`,
+      text: `Team: ${team_name} \n Contact: ${name} (${email}) \n Competition: ${competition_type} \n Quantity: ${quantity} \n Message: ${message}`,
     });
 
     return res.status(200).json({
@@ -70,11 +66,11 @@ const vendorEnquiryMessage = async (req, res) => {
   }
 };
 
-// product overview quote request form
+// product overview quote request form (vendor page)
 const sendQuoteRequest = async (req, res) => {
-  const { name, email, subject, message, inquiry_type } = req.body;
+  const { name, email, subject, userMessage, inquiry_type } = req.body;
 
-  if (!name || !email || !subject || !message || !inquiry_type) {
+  if (!name || !email || !subject || !userMessage || !inquiry_type) {
     return res.status(400).json({ error: "All fields are required" });
   }
 
@@ -83,9 +79,7 @@ const sendQuoteRequest = async (req, res) => {
     await sendMail({
       to: vendor ? vendor.email : process.env.EMAIL_USER, // send to vendor if vendor_id is provided and valid, otherwise send to default contact email
       subject: `Quote Request from ${name}: ${subject}`,
-      message: `Inquiry Type: ${inquiry_type}
-                Contact: ${name} (${email})
-                Message: ${message}`,
+      text: `Inquiry Type: ${inquiry_type} \n Contact: ${name} (${email}) \n Message: ${userMessage}`,
     });
 
     return res.status(200).json({

@@ -1,9 +1,9 @@
 const express = require("express");
 const router = express.Router();
-const { sendContactMessage,vendorEnquiryMessage, sendQuoteRequest } = require("../controllers/contactus");
+const { sendContactMessage,vendorEnquiryMessage, sendQuoteRequest, subcriptionEmail } = require("../controllers/contactController");
 
 // contact page form
-router.post("/contact", sendContactMessage);
+router.post("/contact-form", sendContactMessage);
 
 router.get("/", (req, res) => {
   res.send("Contact API is working");
