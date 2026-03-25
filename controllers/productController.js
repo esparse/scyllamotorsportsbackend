@@ -22,15 +22,22 @@ exports.createProduct = async (req, res) => {
       tags
     } = req.body;
 
+    // validation
     if (!title || !description || !price || !category) {
-      return res.status(400).json({ success: false, message: "Required fields missing" });
+      return res.status(400).json({
+        success: false,
+        message: "Required fields missing"
+      });
     }
 
     if (!req.files || req.files.length === 0) {
-      return res.status(400).json({ success: false, message: "At least one image required" });
+      return res.status(400).json({
+        success: false,
+        message: "At least one image required"
+      });
     }
 
-    // Upload images to Cloudinary
+    // upload images
     const imageUrls = [];
 
     for (const file of req.files) {
@@ -39,9 +46,13 @@ exports.createProduct = async (req, res) => {
       });
 
       imageUrls.push(result.secure_url);
+
+      // remove temp file
       fs.unlinkSync(file.path);
     }
 
+    // create product
+    
     const product = await Product.create({
       title,
       description,
@@ -54,111 +65,29 @@ exports.createProduct = async (req, res) => {
       tags: tags ? JSON.parse(tags) : [],
       images: imageUrls,
 
+      // connection with Vendor/Team
       createdBy: req.user._id,
-      creatorModel: req.user.role === "VENDOR" ? "Vendor" : "Team"
-
+      creatorModel: req.user.role === "vendor" ? "Vendor" : "Team"
     });
-
-    console.log("ROLE:", req.user.role);
-
 
     res.status(201).json({
       success: true,
-      message: "Product submitted for approval",
+      message: "Product created successfully",
       data: product
     });
 
   } catch (error) {
     console.error("Create product error:", error);
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
   }
 };
+
 
 // View own products
 // product.controller.js
-exports.getMyProducts = async (req, res) => {
-  try {
-    // Count how many products this vendor has uploaded
-    const productCount = await Product.countDocuments({
-      createdBy: req.user.id,
-      creatorModel: "Vendor"
-    });
-
-    res.json({ productCount });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
-
-// admin
-exports.approveProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    product.status = "approved";
-    await product.save();
-
-    res.json({ message: "Product approved successfully", product });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-// admin
-exports.rejectProduct = async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
-
-    product.status = "rejected";
-    await product.save();
-
-    res.json({ message: "Product rejected", product });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
-exports.getApprovedProducts = async (req, res) => {
-  try {
-    res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
-    res.setHeader("Pragma", "no-cache");
-    res.setHeader("Expires", "0");
-
-    const products = await Product.find({ status: "approved" })
-      .sort({ createdAt: -1 })
-      .lean();
-
-    console.log("Fetched products:", products.length);
-
-    const formattedProducts = products.map(p => ({
-      _id: p._id,
-      name: p.title,
-      category: p.category,
-      description: p.description,
-      price: p.price,
-      image: p.images?.[0] || "",
-      condition: p.condition || "new",
-      tags: p.tags || []
-    }));
-
-    res.status(200).json({
-      success: true,
-      data: formattedProducts
-    });
-
-  } catch (error) {
-    res.status(500).json({ success: false });
-  }
-};
 
 
 exports.getMarketplaceFilters = async (req, res) => {

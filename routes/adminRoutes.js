@@ -5,7 +5,7 @@ const authUser = require("../middlewares/authUser");
 const adminAuth = require("../middlewares/adminAuth");
 const adminCtrl = require("../controllers/adminController");
 const { getAdminDashboardStats } = require("../controllers/adminDashboardController");
-
+const{approveProduct , rejectProduct} = require("../controllers/adminController");
 
 
 // Admin Login 
@@ -75,6 +75,7 @@ router.delete("/media/:mediaId",adminCtrl.deleteAdminMedia);
 // update the media
 router.put("/media/:mediaId", adminCtrl.updateAdminMedia);
 
-
+router.put("/:id/approve", authUser(["admin"]), approveProduct);
+router.put("/:id/reject", authUser(["admin"]), rejectProduct);
 
 module.exports = router;

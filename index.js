@@ -57,6 +57,8 @@ app.use('/api/member', require("./routes/memberRoutes"));
 
 app.use("/api/chat", chatRoutes);
 
+app.use('/api/marketplace', require("./routes/marketplaceRoutes"));
+
 
 app.use('/api/contact', require("./routes/contactRoute"));
 

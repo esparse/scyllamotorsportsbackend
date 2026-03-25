@@ -5,51 +5,49 @@ const teamSchema = new mongoose.Schema(
     name: {
       type: String,
       required: true,
-      trim: true
+      trim: true,
     },
 
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "Member" }],
 
     tagline: {
       type: String,
-      trim: true
+      trim: true,
     },
 
     description: {
       type: String,
       trim: true,
-      default: ""
+      default: "",
     },
-
 
     logo: {
       type: String,
-      required: true // Cloudinary URL
+      required: true, // Cloudinary URL
     },
 
     verificationDoc: {
       type: String,
-      required: true // Cloudinary URL
+      required: true, // Cloudinary URL
     },
 
     email: {
       type: String,
       required: true,
       unique: true,
-      lowercase: true
+      lowercase: true,
     },
 
     contactNo: {
       type: String,
-      required: true
+      required: true,
     },
 
     location: {
       address: { type: String },
       lat: { type: Number },
-      lng: { type: Number }
+      lng: { type: Number },
     },
-
 
     category: {
       type: String,
@@ -68,37 +66,40 @@ const teamSchema = new mongoose.Schema(
         "Formula Racing",
         "Rally",
         "Endurance",
-        "Motocross"
+        "Motocross",
       ],
-      required: true
+      required: true,
     },
 
     achievements: [
       {
         title: { type: String, required: true },
         description: { type: String },
-        type: { type: String, enum: ["gold", "blue", "green"], default: "gold" }, // for icon color
-        year: { type: Number, default: new Date().getFullYear() }
-      }
+        type: {
+          type: String,
+          enum: ["gold", "blue", "green"],
+          default: "gold",
+        }, // for icon color
+        year: { type: Number, default: new Date().getFullYear() },
+      },
     ],
-
 
     password: {
       type: String,
       required: true,
-      select: false // 🔐 security best practice
+      select: false, // 🔐 security best practice
     },
 
     role: {
       type: String,
       enum: ["team"],
-      default: "team"
+      default: "team",
     },
 
     status: {
       type: String,
       enum: ["pending", "approved", "rejected"],
-      default: "pending"
+      default: "pending",
     },
 
     // media: [{ type: String }],
@@ -109,7 +110,7 @@ const teamSchema = new mongoose.Schema(
         logo: { type: String, trim: true, required: true }, // Cloudinary URL
         category: { type: String, trim: true, default: "title" }, // title/platinum/gold/silver
         website: { type: String, trim: true, default: "" },
-        initials: { type: String, trim: true } // first letter of name
+        initials: { type: String, trim: true }, // first letter of name
       },
     ],
     // socialMedia: {
@@ -121,13 +122,10 @@ const teamSchema = new mongoose.Schema(
 
     gallery: {
       type: [String],
-      default: []
+      default: [],
     },
-
-
-
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 module.exports = mongoose.model("Team", teamSchema);

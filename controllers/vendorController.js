@@ -95,6 +95,7 @@ exports.registerVendor = async (req, res) => {
 };
 
 const jwt = require("jsonwebtoken");
+const Product = require("../models/Product");
 
 // Vendor Login
 exports.loginVendor = async (req, res) => {
@@ -134,7 +135,6 @@ exports.loginVendor = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 // get vendor data
 exports.getVendorProfile = async (req, res) => {
@@ -214,9 +214,6 @@ exports.editVendorProfile = async (req, res) => {
   }
 };
 
-
-
-
 // vendor upload business hour
 exports.updateBusinessHours = async (req, res) => {
   try {
@@ -251,10 +248,7 @@ exports.updateBusinessHours = async (req, res) => {
   }
 };
 
-
-
 // vendor upload gallery
-
 // upload gallery at vendor profile
 const uploadGallery1 = multer({
   storage: multer.memoryStorage()
@@ -274,7 +268,6 @@ const uploadToCloudinary = (buffer) => {
     ).end(buffer);
   });
 };
-
 
 exports.uploadGallery = async (req, res) => {
   try {
@@ -325,7 +318,6 @@ exports.uploadGallery = async (req, res) => {
   }
 };
 
-
 exports.uploadVendorMedia = async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
@@ -359,6 +351,22 @@ exports.uploadVendorMedia = async (req, res) => {
   }
 };
 
+// get vendor products for vendor profile
+exports.getMyProducts = async (req, res) => {
+  try {
+    // Count how many products this vendor has uploaded
+    const productCount = await Product.countDocuments({
+      createdBy: req.user.id,
+      creatorModel: "Vendor"
+    });
+
+    res.json({ productCount });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+};
+
 // fetch the list of vendor in landing page
 exports.getAllVendors = async (req, res) => {
   try {
@@ -382,7 +390,6 @@ exports.getAllVendors = async (req, res) => {
   }
 };
 
-
 // fetch the vendor data on landing page
 exports.getPublicVendorProfile = async (req, res) => {
   try {
@@ -405,7 +412,6 @@ exports.getPublicVendorProfile = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
 
 exports.addVendorService = async (req, res) => {
   try {
@@ -450,7 +456,6 @@ exports.addVendorService = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 
 exports.addProject = async (req, res) => {
   try {

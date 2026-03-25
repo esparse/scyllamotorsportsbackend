@@ -3,6 +3,9 @@ const router = express.Router();
 const vendorController = require("../controllers/vendorController");
 const authUser = require("../middlewares/authUser")
 const multer = require("multer");
+const {getVendorSpecificProducts} = require("../controllers/MarketplaceController");
+const productCtrl = require("../controllers/productController");
+const {getMyProducts} = require("../controllers/vendorController");
 
 // Temp storage for uploads
 const upload = multer({ dest: "uploads/" });
@@ -52,7 +55,6 @@ router.get("/:vendorId", vendorController.getPublicVendorProfile);
 // upload media
 router.post("/profile/media", authUser(["VENDOR"]), upload.single("media"), vendorController.uploadVendorMedia);
 
-
 router.post("/service", authUser(["VENDOR"]), vendorController.addVendorService);
 
 router.post(
@@ -61,5 +63,11 @@ router.post(
   upload.single("image"),
   vendorController.addProject
 );
+
+
+router.get("/my", authUser(["VENDOR", "TEAM_ADMIN"]), getMyProducts);
+
+// for product/servicing tab in vendor profile
+router.get("/products/:vendorId", getVendorSpecificProducts);
 
 module.exports = router;

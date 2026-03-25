@@ -262,13 +262,38 @@ exports.getPendingProducts = async (req, res) => {
 };
 
 exports.approveProduct = async (req, res) => {
-  await Product.findByIdAndUpdate(req.params.id, { status: "approved" });
-  res.json({ message: "Product approved" });
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    product.status = "approved";
+    await product.save();
+
+    res.json({ message: "Product approved successfully", product });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
+// admin
 exports.rejectProduct = async (req, res) => {
-  await Product.findByIdAndUpdate(req.params.id, { status: "rejected" });
-  res.json({ message: "Product rejected" });
+  try {
+    const product = await Product.findById(req.params.id);
+
+    if (!product) {
+      return res.status(404).json({ message: "Product not found" });
+    }
+
+    product.status = "rejected";
+    await product.save();
+
+    res.json({ message: "Product rejected", product });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
 
 

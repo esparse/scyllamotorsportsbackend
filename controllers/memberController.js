@@ -142,11 +142,6 @@ exports.addMember = async (req, res) => {
   }
 };
 
-
-
-
-
-
 exports.setMemberPassword = async (req, res) => {
   try {
     const { token } = req.params;
@@ -194,7 +189,6 @@ exports.setMemberPassword = async (req, res) => {
 };
 
 
-
 // exports.getMembers = async (req, res) => {
 //   try {
 //     const members = await Member.find({ team: req.team._id });
@@ -227,8 +221,6 @@ exports.setMemberPassword = async (req, res) => {
 //   }
 // };
 
-
-
 exports.getMembers = async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: "User not found" });
@@ -255,12 +247,6 @@ exports.getMembers = async (req, res) => {
   }
 };
 
-
-
-
-
-
-
 exports.deleteMember = async (req, res) => {
   try {
     const member = await Member.findById(req.params.id);
@@ -283,8 +269,6 @@ exports.deleteMember = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
-
 
 exports.updateMember = async (req, res) => {
   try {
@@ -331,9 +315,7 @@ exports.updateMember = async (req, res) => {
   }
 };
 
-
 // get my profile based on member log in 
-
 
 // exports.getMyProfile = async (req, res) => {
 //   try {
@@ -391,8 +373,6 @@ exports.getMyProfile = async (req, res) => {
   }
 };
 
-
-
 // update member's individual profile
 // memberController.js
 exports.updateMyProfile = async (req, res) => {
@@ -432,9 +412,6 @@ exports.updateMyProfile = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
-
-
 
 // upload certificate
 // upload certificate (member)
@@ -488,8 +465,6 @@ exports.uploadCertificate = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
-
-
 
 exports.getMyCertificates = async (req, res) => {
   try {
