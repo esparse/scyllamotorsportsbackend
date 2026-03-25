@@ -49,8 +49,6 @@ app.use("/api/admin", require("./routes/adminRoutes"));
 
 // app.use("/api/products", require("./routes/productRoutes"));
 
-app.use("/api/vehicles", require("./routes/vehicleRoutes"));
-
 app.use("/api/products", require('./routes/productRoutes'));
 
 app.use('/api/member', require("./routes/memberRoutes"));

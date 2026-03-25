@@ -1,81 +1,122 @@
 const express = require("express");
 const router = express.Router();
-const teamCtrl = require("../controllers/teamController");
-// import { getTeamActivities } from "../controllers/activity.controller.js";
-const teamAuth = require("../middlewares/teamAuth");
-const { getTeamActivities } = require("../controllers/activity.controller");
-const { uploadGalleryMiddleware } = require("../controllers/teamController")
-const authUser = require("../middlewares/authUser")
 
 const multer = require("multer");
 
-// Temp storage for uploads
+// Controllers
+const {
+  loginTeam,
+  registerTeam,
+  getTeamProfile,
+  updateTeamProfile,
+  uploadTeamMedia,
+  addAchievement,
+  deleteAchievement,
+  deleteSponsor,
+  uploadGallery,
+  deleteGalleryMedia,
+  getAllTeams,
+  addSocialLink,
+  deleteSocialLink,
+  addMember,
+  removeMember,
+  uploadGalleryMiddleware,
+} = require("../controllers/teamController");
+
+const {
+  addVehicle,
+  getVehicles,
+  removeVehicle,
+  uploadMiddleware,
+} = require("../controllers/vehicleController");
+
+const { getTeamActivities } = require("../controllers/activity.controller");
+
+// Middlewares
+const teamAuth = require("../middlewares/teamAuth");
+const authUser = require("../middlewares/authUser");
+
+// Multer (for team-related uploads)
 const upload = multer({ dest: "uploads/" });
 
-// Register & login routes
-router.post("/register", upload.fields([
-  { name: "logo", maxCount: 1 },
-  { name: "verificationDoc", maxCount: 1 }
-]), teamCtrl.registerTeam);
-
-router.post("/login", teamCtrl.loginTeam);
-
-// Profile routes (get & update)
-router.get("/profile", authUser(["TEAM_ADMIN", "MEMBER"]), teamCtrl.getTeamProfile);
-
-router.put("/profile", teamAuth, upload.fields([
-  { name: "logo", maxCount: 1 },
-  { name: "verificationDoc", maxCount: 1 }
-]), teamCtrl.updateTeamProfile);
-
-
-router.get("/activities", authUser(["TEAM_ADMIN", "MEMBER"]), getTeamActivities);
-
-// POST /team/profile/media
-router.post("/profile/media", teamAuth, upload.single("media"), teamCtrl.uploadTeamMedia);
-
-// DELETE /api/teams/profile/media/:filename
-// router.delete('/profile/media/:filename', teamAuth, teamCtrl.deleteTeamMedia);
-
-// add achivements
-router.post("/profile/achievements",teamAuth, teamCtrl.addAchievement);
-
-// delete achivement
-router.delete("/profile/achievements/:id",teamAuth, teamCtrl.deleteAchievement);
-
-// upload sponser logo
-router.post("/profile/sponsor", teamAuth, teamCtrl.uploadSponsorLogo);
-
-// delete sponsor
-router.delete(
-  "/profile/sponsor/:id",
-  teamAuth,
-  teamCtrl.deleteSponsor
+/* ================= AUTH ================= */
+router.post(
+  "/register",
+  upload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "verificationDoc", maxCount: 1 },
+  ]),
+  registerTeam
 );
 
+router.post("/login", loginTeam);
 
+/* ================= PROFILE ================= */
+router.get("/profile", authUser(["TEAM_ADMIN", "MEMBER"]), getTeamProfile);
 
-// upload media gallary
+router.put(
+  "/profile",
+  teamAuth,
+  upload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "verificationDoc", maxCount: 1 },
+  ]),
+  updateTeamProfile
+);
+
+/* ================= ACTIVITIES ================= */
+router.get(
+  "/activities",
+  authUser(["TEAM_ADMIN", "MEMBER"]),
+  getTeamActivities
+);
+
+/* ================= PROFILE MEDIA ================= */
+router.post(
+  "/profile/media",
+  teamAuth,
+  upload.single("media"),
+  uploadTeamMedia
+);
+
+/* ================= ACHIEVEMENTS ================= */
+router.post("/profile/achievements", teamAuth, addAchievement);
+
+router.delete(
+  "/profile/achievements/:id",
+  teamAuth,
+  deleteAchievement
+);
+
+/* ================= SPONSORS ================= */
+router.delete("/profile/sponsor/:id", teamAuth, deleteSponsor);
+
+/* ================= GALLERY ================= */
 router.post(
   "/profile/gallery",
   teamAuth,
-  uploadGalleryMiddleware , // 👈 REQUIRED
-  teamCtrl.uploadGallery
+  uploadGalleryMiddleware,
+  uploadGallery
 );
 
-router.delete("/profile/gallery", teamAuth, teamCtrl.deleteGalleryMedia);
+router.delete("/profile/gallery", teamAuth, deleteGalleryMedia);
+
+/* ================= TEAMS ================= */
+router.get("/", getAllTeams);
+
+/* ================= SOCIAL LINKS ================= */
+router.post("/social", teamAuth, addSocialLink);
+router.delete("/social/:id", teamAuth, deleteSocialLink);
+
+/* ================= MEMBERS ================= */
+router.post("/members", teamAuth, addMember);
+router.delete("/members/:id", teamAuth, removeMember);
+
+/* ================= VEHICLES ================= */
+router.post("/vehicles", teamAuth, uploadMiddleware, addVehicle);
+router.get("/vehicles", teamAuth, getVehicles);
+router.delete("/vehicles/:id", teamAuth, removeVehicle);
 
 
-router.get("/", teamCtrl.getAllTeams);
-// router.get("/:teamId", teamCtrl.getPublicTeamProfile);
-
-
-// ADD social link
-router.post("/social", teamAuth, teamCtrl.addSocialLink);
-
-// DELETE social link
-router.delete("/social/:id", teamAuth, teamCtrl.deleteSocialLink);
-
-// router.get("/social", teamAuth, teamCtrl.getSocialLinks);
 
 module.exports = router;
