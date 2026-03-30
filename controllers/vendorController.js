@@ -136,47 +136,6 @@ exports.loginVendor = async (req, res) => {
   }
 };
 
-// get vendor data
-exports.getVendorProfile = async (req, res) => {
-  try {
-    if (!req.user) return res.status(401).json({ error: "User not found" });
-
-    let vendorProfile = null;
-    let vendorId = null;
-
-    if (req.user.role === "VENDOR") {
-      vendorProfile = await Vendor.findById(req.user._id).lean();
-      vendorId = vendorProfile._id;
-    }
-    const mediaUrls = (vendorProfile.media || []).map(
-      (file) => `${req.protocol}://${req.get("host")}/${file}`
-    );
-
-    if (!vendorProfile) return res.status(404).json({ error: "Vendor not found" });
-
-    // Include media URLs if needed
-    // const mediaUrls = (teamProfile.media || []).map(
-    //   (file) => `${req.protocol}://${req.get("host")}/${file}`
-    // );
-
-    // Fetch all members of this team
-    // const teamMembers = await Member.find({ team: teamId }).lean();
-
-    res.json({
-      ...vendorProfile,
-      media: mediaUrls,
-      // achievements: teamProfile.achievements || [],
-      // gallery: teamProfile.gallery || [],
-      // members: teamMembers || [],               // array of team members
-      //currentMember: req.user.role === "MEMBER" ? req.user : null, // optional
-    });
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-
-}
 
 // edit vendor profile
 exports.editVendorProfile = async (req, res) => {
@@ -345,45 +304,6 @@ exports.uploadVendorMedia = async (req, res) => {
     const mediaUrls = vendor.media.map(f => `${req.protocol}://${req.get("host")}/${f}`);
 
     res.status(200).json({ message: "Media uploaded", media: mediaUrls });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-};
-
-// get vendor products for vendor profile
-exports.getMyProducts = async (req, res) => {
-  try {
-    // Count how many products this vendor has uploaded
-    const productCount = await Product.countDocuments({
-      createdBy: req.user.id,
-      creatorModel: "Vendor"
-    });
-
-    res.json({ productCount });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: "Server Error" });
-  }
-};
-
-// fetch the list of vendor in landing page
-exports.getAllVendors = async (req, res) => {
-  try {
-    const vendors = await Vendor.find({})
-      .select("name category logo location createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const formattedVendors = vendors.map(vendor => ({
-      ...vendor,
-      logo: vendor.logo
-        ? `${req.protocol}://${req.get("host")}/${vendor.logo}`
-        : null
-    }));
-
-    res.json(formattedVendors);
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });

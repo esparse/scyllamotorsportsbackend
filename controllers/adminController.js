@@ -253,6 +253,29 @@ exports.rejectVendor = async (req, res) => {
   }
 }
 
+// Gives all vendor list 
+exports.getAllVendors = async (req, res) => {
+  try {
+    const vendors = await Vendor.find({})
+      .select("name category logo location createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const formattedVendors = vendors.map(vendor => ({
+      ...vendor,
+      logo: vendor.logo
+        ? `${req.protocol}://${req.get("host")}/${vendor.logo}`
+        : null
+    }));
+
+    res.json(formattedVendors);
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
 
 const Product = require("../models/Product");
 

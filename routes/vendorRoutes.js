@@ -5,7 +5,9 @@ const authUser = require("../middlewares/authUser")
 const multer = require("multer");
 const {getVendorSpecificProducts} = require("../controllers/MarketplaceController");
 const productCtrl = require("../controllers/productController");
-const {getMyProducts} = require("../controllers/vendorController");
+const {getMyProducts} = require("../controllers/vendorDashboardController");
+const {getVendorProfile} = require("../controllers/vendorDashboardController")
+const {getAllVendors} = require("../controllers/adminController")
 
 // Temp storage for uploads
 const upload = multer({ dest: "uploads/" });
@@ -21,8 +23,8 @@ router.post(
 // vendor login
 router.post("/login", vendorController.loginVendor);
 
-//get vendor data
-router.get("/profile",authUser(["VENDOR"]),vendorController.getVendorProfile);
+//get vendor data)
+router.get("/profile",authUser(["VENDOR"]),getVendorProfile);
 
 // edit vendor profile
 router.put("/profile", authUser(["VENDOR"]), upload.fields([
@@ -48,7 +50,7 @@ router.post(
   vendorController.uploadGallery
 );
 
-router.get("/", vendorController.getAllVendors);
+router.get("/", getAllVendors);
 router.get("/:vendorId", vendorController.getPublicVendorProfile);
 
 
