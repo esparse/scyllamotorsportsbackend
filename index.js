@@ -5,16 +5,11 @@ const cors = require("cors");
 const path = require("path")
 const chatRoutes = require("./routes/chat");
 
-
-
-
 dotenv.config();
 
 if (process.env.NODE_ENV === "production") {
   console.log = () => {};
 }
-
-
 
 const app = express();
 
@@ -43,7 +38,6 @@ app.use("/api", require("./routes/landingRoutes"))
 
 app.use("/api/teams", require("./routes/teamRoutes"));
 
-app.use("/api/vendors", require("./routes/vendorRoutes"));
 
 app.use("/api/admin", require("./routes/adminRoutes"));
 
@@ -57,9 +51,10 @@ app.use("/api/chat", chatRoutes);
 
 app.use('/api/marketplace', require("./routes/marketplaceRoutes"));
 
-
 app.use('/api/contact', require("./routes/contactRoute"));
 
+app.use("/api/vendors/dashboard", require("./routes/vendorDashboardRoutes"));
+app.use("/api/vendors", require("./routes/vendorProductsAndServices"));
 // app.use('/api/activity', require("./routes/activityRoutes"))
 
 // app.use('/api/activity', require("./routes/activityRoutes"));

@@ -16,29 +16,25 @@ const getVendorProfile = async (req, res) => {
       (file) => `${req.protocol}://${req.get("host")}/${file}`
     );
 
-    if (!vendorProfile) return res.status(404).json({ error: "Vendor not found" });
-
-    
-    
+    if (!vendorProfile)
+      return res.status(404).json({ error: "Vendor not found" });
 
     res.json({
       ...vendorProfile,
       media: mediaUrls,
     });
-
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error" });
   }
-
-}
+};
 // give count of all vendor
 const getMyProducts = async (req, res) => {
   try {
     // Count how many products this vendor has uploaded
     const productCount = await Product.countDocuments({
       createdBy: req.user.id,
-      creatorModel: "Vendor"
+      creatorModel: "Vendor",
     });
 
     res.json({ productCount });
@@ -73,4 +69,4 @@ module.exports = {
   getMyProducts,
   getVendorQuotes,
   getVendorInquiries,
-}
+};
