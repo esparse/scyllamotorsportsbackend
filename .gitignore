@@ -1,5 +1,7 @@
 # Environment variables
 .env
+Eventseed.js
+Teamseed.js
 
 # Node modules
 node_modules/

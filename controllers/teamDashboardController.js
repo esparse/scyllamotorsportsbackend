@@ -1,3 +1,7 @@
+const Vehicle = require("../models/Vehicle");
+const Team = require("../models/Team");
+const Member = require("../models/Member");
+
 const getTeamProfile = async (req, res) => {
   try {
     if (!req.user) return res.status(401).json({ error: "User not found" });
@@ -5,7 +9,6 @@ const getTeamProfile = async (req, res) => {
     let teamProfile = null;
 
     if (req.user.role === "TEAM_ADMIN") {
-      // TEAM_ADMIN is the team itself, so _id matches Team document
       teamProfile = await Team.findById(req.user.id).lean();
     } else if (req.user.role === "MEMBER") {
       const member = await Member.findById(req.user.id).lean();
@@ -19,11 +22,14 @@ const getTeamProfile = async (req, res) => {
 
     const teamId = teamProfile._id;
 
+    const [teamMembers, eventsCount] = await Promise.all([
+      Member.find({ team: teamId }).lean(),
+      Event.countDocuments({ "participants.team": teamId }),
+    ]);
+
     const mediaUrls = (teamProfile.media || []).map(
       (file) => `${req.protocol}://${req.get("host")}/${file}`
     );
-
-    const teamMembers = await Member.find({ team: teamId }).lean();
 
     return res.json({
       ...teamProfile,
@@ -31,9 +37,58 @@ const getTeamProfile = async (req, res) => {
       achievements: teamProfile.achievements || [],
       gallery: teamProfile.gallery || [],
       members: teamMembers || [],
+      eventsCount,
       currentMember: req.user.role === "MEMBER" ? req.user : null,
     });
   } catch (err) {
     res.status(500).json({ message: "Internal Server error", err: err.message });
   }
 };
+
+
+const getVehicleCount = async (req, res) => {
+  try {
+    if (!req.user) return res.status(401).json({ error: "User not found" });
+
+    let teamId = null;
+
+    if (req.user.role === "TEAM_ADMIN") {
+      teamId = req.user.id;
+    } else if (req.user.role === "MEMBER") {
+      const member = await Member.findById(req.user.id).lean();
+      if (!member) return res.status(404).json({ error: "Member not found" });
+      teamId = member.team;
+    } else {
+      return res.status(403).json({ error: "Unauthorized role" });
+    }
+
+    const vehicleCount = await Vehicle.countDocuments({ team: teamId });
+
+    return res.json({ count: vehicleCount });
+  } catch (err) {
+    res.status(500).json({ message: "Internal Server error", err: err.message });
+  }
+};
+
+// const eventsParticipated = async (req,res) => {
+//   try {
+//     if (!req.user) return res.status(401).json({ error: "User not found" });
+//     let teamId = null;
+
+//     if (req.user.role === "TEAM_ADMIN") {
+//       teamId = req.user.id;
+//     } else if (req.user.role === "MEMBER") {
+//       const member = await Member.findById(req.user.id).lean();
+//       if (!member) return res.status(404).json({ error: "Member not found" });
+//       teamId = member.team;
+//     } else {
+//       return res.status(403).json({ error: "Unauthorized role" });
+//     }
+// }
+
+
+module.exports = {
+  getTeamProfile,
+  getVehicleCount,
+  eventsParticipated
+}

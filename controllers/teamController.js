@@ -296,6 +296,53 @@ exports.getTeamProfile = async (req, res) => {
   }
 };
 
+// for testing purposes (bypass auth) - remove in production
+// exports.getTeamProfile = async (req, res) => {
+//   try {
+//     // 🔥 TEMP: bypass auth
+//     req.user = {
+//       _id: "69ceb6f14e547a1ca6f61271",
+//       role: "TEAM_ADMIN", // ya "MEMBER"
+//     };
+
+//     let teamProfile = null;
+//     let teamId = null;
+
+//     if (req.user.role === "TEAM_ADMIN") {
+//       teamProfile = await Team.findById(req.user._id).lean();
+//       teamId = teamProfile?._id;
+//     } else if (req.user.role === "MEMBER") {
+//       const member = await Member.findById(req.user._id).lean();
+//       if (!member) return res.status(404).json({ error: "Member not found" });
+
+//       teamProfile = await Team.findById(member.team).lean();
+//       teamId = member.team;
+//     }
+
+//     if (!teamProfile) return res.status(404).json({ error: "Team not found" });
+
+//     const mediaUrls = (teamProfile.media || []).map(
+//       (file) => `${req.protocol}://${req.get("host")}/${file}`
+//     );
+
+//     const teamMembers = await Member.find({ team: teamId }).lean();
+//     const socialMedia = await SocialLink.find({ team: teamId }).lean();
+
+//     res.json({
+//       ...teamProfile,
+//       media: mediaUrls,
+//       achievements: teamProfile.achievements || [],
+//       gallery: teamProfile.gallery || [],
+//       members: teamMembers || [],
+//       currentMember: req.user.role === "MEMBER" ? req.user : null,
+//       socialMedia,
+//     });
+//   } catch (err) {
+//     console.error(err);
+//     res.status(500).json({ error: "Server error" });
+//   }
+// };
+
 // Update team profile
 exports.updateTeamProfile = async (req, res) => {
   let logoUpload = null;

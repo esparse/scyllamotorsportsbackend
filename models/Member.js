@@ -3,20 +3,25 @@ const mongoose = require("mongoose");
 const memberSchema = new mongoose.Schema({
   team: { type: mongoose.Schema.Types.ObjectId, ref: "Team", required: true },
   name: { type: String, required: true },
-  role: { type: String, required: true }, // Driver, Engineer, Crew, etc.
+
+  role: {
+    type: String,
+    required: true,
+    enum: ["crew", "driver", "engineer", "member", "manager", "designer"],
+  },
+
   bio: String,
-  profilePic: String, // Cloudinary URL
+  profilePic: String,
+
   certificates: [
     {
-      name: { type: String, required: true },   // ✅ CERTIFICATE NAME
-      url: { type: String},    // cloudinary file
-      expiryDate: { type: Date}, // ✅ NEW
+      name: { type: String, required: true },
+      url: { type: String },
+      expiryDate: { type: Date },
       uploadedAt: { type: Date, default: Date.now },
     },
   ],
 
-
-  // 🔐 Login credentials
   email: {
     type: String,
     required: true,
@@ -27,7 +32,7 @@ const memberSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    select: false, // never return password
+    select: false,
   },
 
   roleType: {
@@ -36,18 +41,17 @@ const memberSchema = new mongoose.Schema({
     default: "MEMBER",
   },
 
-  // 🔑 Password setup flow
   passwordSetupToken: String,
   passwordSetupExpires: Date,
 
-  // ⚙️ Status
   isActive: {
     type: Boolean,
     default: false,
   },
 
   phone: {
-    type: String, defualt: "",
+    type: String,
+    default: "",
   },
 
   location: { type: String, default: "" },
