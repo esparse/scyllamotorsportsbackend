@@ -4,6 +4,8 @@ const multer = require("multer");
 const fs = require("fs");
 const bcrypt = require("bcryptjs");
 const path = require("path")
+const jwt = require("jsonwebtoken");
+const Product = require("../models/Product");
 // const CloudinaryStorage  = require("multer-storage-cloudinary");
 
 // Multer temp storage
@@ -94,8 +96,6 @@ exports.registerVendor = async (req, res) => {
   }
 };
 
-const jwt = require("jsonwebtoken");
-const Product = require("../models/Product");
 
 // Vendor Login
 exports.loginVendor = async (req, res) => {

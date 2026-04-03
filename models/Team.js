@@ -124,6 +124,15 @@ const teamSchema = new mongoose.Schema(
       type: [String],
       default: [],
     },
+    eventsParticipated: {
+      type: Number,
+      default: 0,
+    },
+
+    eventsWon: {
+      type: Number,
+      default: 0,
+    },
   },
   { timestamps: true },
 );

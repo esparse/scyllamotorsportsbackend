@@ -1,27 +1,35 @@
 const express = require("express");
 const router = express.Router();
 const memberController = require("../controllers/memberController");
-const teamAuth = require("../middlewares/teamAuth")
-const authUser = require("../middlewares/authUser")
-const multer = require("multer");
-const upload = multer({ dest: "uploads/" });
+const auth = require("../middlewares/authUser"); 
+const teamController = require("../controllers/teamController");
 
-router.post("/",teamAuth, memberController.addMember);
-router.get("/",authUser(["TEAM_ADMIN", "MEMBER"]), memberController.getMembers);
-router.delete("/:id",teamAuth, memberController.deleteMember);
+const { upload, handleUploadError } = require("../middlewares/upload");
 
-// Set password from email link (NO AUTH)
+// single file
+router.post(
+  "/certificates",
+  auth(["TEAM_ADMIN", "MEMBER"]),
+  upload.single("file"),
+  handleUploadError,
+  memberController.uploadCertificate,
+);
+
+// if you ever need multiple files (e.g. gallery)
+router.post(
+  "/gallery",
+  auth(["TEAM_ADMIN"]),
+  upload.array("files", 5),
+  handleUploadError,
+  teamController.uploadGallery,
+);
+
 router.post("/set-password/:token", memberController.setMemberPassword);
 
-// member get own profile
-router.get("/myProfile", authUser(['MEMBER',"TEAM_ADMIN"]), memberController.getMyProfile);
-
-// update member profile
-router.put("/myProfile",authUser(["TEAM_ADMIN",'MEMBER']),upload.single("profilePic"), memberController.updateMyProfile)
-
-
-// upload certificate
-// router.post("/uploadCertificate",authUser(["MEMBER"]),upload.single("certificate"), memberController.uploadCertificate
-// );
+router.post("/", auth(["TEAM_ADMIN"]), memberController.addMember);
+router.get("/", auth(["TEAM_ADMIN", "MEMBER"]), memberController.getMembers);
+router.get("/:id", auth(["TEAM_ADMIN", "MEMBER"]), memberController.getMember);
+router.put("/:id", auth(["TEAM_ADMIN"]), memberController.updateMember);
+router.delete("/:id", auth(["TEAM_ADMIN"]), memberController.deleteMember);
 
 module.exports = router;

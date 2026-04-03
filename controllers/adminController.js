@@ -7,6 +7,8 @@ const sendMail = require("../utils/mailer");
 const logTeamActivity = require("../utils/activityLogger");
 const cloudinary = require("../config/cloudinary");
 const multer = require("multer");
+const Product = require("../models/Product");
+
 
 
 exports.upload = multer({
@@ -276,8 +278,6 @@ exports.getAllVendors = async (req, res) => {
   }
 };
 
-
-const Product = require("../models/Product");
 
 exports.getPendingProducts = async (req, res) => {
   const products = await Product.find({ status: "pending" });
