@@ -2,20 +2,35 @@ const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const cors = require("cors");
-const path = require("path")
-const chatRoutes = require("./routes/chat");
+const path = require("path");
 
 dotenv.config();
+
+const app = express();
+
+// ─────────────────────────────────────────
+// ENV & CONFIG
+// ─────────────────────────────────────────
+const PORT = process.env.PORT || 5000;
 
 if (process.env.NODE_ENV === "production") {
   console.log = () => {};
 }
 
-const app = express();
+// ─────────────────────────────────────────
+// DATABASE
+// ─────────────────────────────────────────
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log("MongoDB Connected"))
+  .catch((err) => console.error("DB Error:", err));
 
+// ─────────────────────────────────────────
+// MIDDLEWARES
+// ─────────────────────────────────────────
 const allowedOrigins = process.env.FRONTEND_URL
   ? process.env.FRONTEND_URL.split(",")
-  : [];
+  : ["http://localhost:5173"];
 
 app.use(
   cors({
@@ -24,78 +39,55 @@ app.use(
   })
 );
 
-app.use(cors({ origin: "http://localhost:5173", credentials: true }));
-
-
-mongoose.connect(process.env.MONGO_URI)
-.then(() => console.log("MongoDB Connected"))
-.catch(err => console.error(err));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Static
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-app.use("/api", require("./routes/landingRoutes"))
+// ─────────────────────────────────────────
+// ROUTES
+// ─────────────────────────────────────────
 
+// Core / Landing
+app.use("/api", require("./routes/landingRoutes"));
+
+// Teams
 app.use("/api/teams", require("./routes/teamRoutes"));
 
+// Vendors
+app.use("/api/vendors", require("./routes/vendorRoutes")); 
+// Vendor Dashboard
+app.use("/api/vendors/dashboard", require("./routes/vendorRoutes"));
 
-// app.use("/api/admin", require("./routes/adminRoutes"));
+// Products
+app.use("/api/products", require("./routes/productRoutes"));
 
-// app.use("/api/products", require("./routes/productRoutes"));
+// Marketplace
+app.use("/api/marketplace", require("./routes/marketplaceRoutes"));
 
-app.use("/api/products", require('./routes/productRoutes'));
+// Members
+app.use("/api/members", require("./routes/memberRoutes"));
 
-app.use('/api/member', require("./routes/memberRoutes"));
+// Chat
+app.use("/api/chat", require("./routes/chat"));
 
-app.use("/api/chat", chatRoutes);
+// Contact
+app.use("/api/contact", require("./routes/contactRoute"));
 
-app.use('/api/marketplace', require("./routes/marketplaceRoutes"));
+// Admin (enable when needed)
+app.use("/api/admin", require("./routes/adminRoutes"));
 
-app.use('/api/contact', require("./routes/contactRoute"));
-
-// app.use("/api/events", require("./routes/eventRoutes"));
-
-app.use("/api/vendors/dashboard", require("./routes/vendorDashboardRoutes"));
-app.use("/api/vendors", require("./routes/vendorProductsAndServices"));
-// app.use('/api/activity', require("./routes/activityRoutes"))
-
-// app.use('/api/activity', require("./routes/activityRoutes"));
-
-
-
-
-// app.use(
-//   cors({
-//     origin: [
-//       "http://localhost:5173", // client
-//       "http://localhost:5174", // vite fallback
-//       "http://localhost:5175", // admin
-//     ],
-//     credentials: true,
-//   })
-// );
-
-
-
-// const http = require("http");
-// const { Server } = require("socket.io");
-
-// const server = http.createServer(app);
-
-// const io = new Server(server, {
-//   cors: {
-//     origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:5175"],
-//     credentials: true,
-//   },
-// });
-
-// require("./socket/chatSocket")(io);
-
+// ─────────────────────────────────────────
+// ROOT
+// ─────────────────────────────────────────
 app.get("/", (req, res) => {
-  res.send("Welcome to Scylla Platform API");
+  res.send(" Scylla Platform API Running");
 });
 
-
-app.listen(5000, () => {
-  console.log("Server running on port 5000");
+// ─────────────────────────────────────────
+// SERVER
+// ─────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
 });

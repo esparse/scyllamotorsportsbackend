@@ -1,86 +1,101 @@
 const express = require("express");
 const router = express.Router();
 
-// Middlewares
+const vendorController = require("../controllers/vendorController");
 const authUser = require("../middlewares/authUser");
-const adminAuth = require("../middlewares/adminAuth");
+const multer = require("multer");
 
-// Controllers
-const adminCtrl = require("../controllers/adminController");
-const { getAdminDashboardStats } = require("../controllers/adminDashboardController");
+const {
+  getVendorProfile,
+  getMyProducts,
+} = require("../controllers/vendorDashboardController");
 
+const {
+  getVendorSpecificProducts,
+} = require("../controllers/MarketplaceController");
+
+// Upload
+const upload = multer({ dest: "uploads/" });
 
 // ─────────────────────────────────────────
 // AUTH
 // ─────────────────────────────────────────
-router.post("/login", adminCtrl.adminLogin);
-
-
-// ─────────────────────────────────────────
-// ADMIN PROFILE
-// ─────────────────────────────────────────
-router.get("/profile", adminAuth, adminCtrl.getAdminProfile);
-router.put("/profile", adminAuth, adminCtrl.updateAdmin);
-
+router.post(
+  "/register",
+  vendorController.uploadVendorFiles,
+  vendorController.registerVendor,
+);
+router.post("/login", vendorController.loginVendor);
 
 // ─────────────────────────────────────────
-// DASHBOARD
+// PROFILE
 // ─────────────────────────────────────────
-router.get("/dashboard", adminAuth, getAdminDashboardStats);
+router.get("/profile", authUser(["VENDOR"]), getVendorProfile);
 
+router.put(
+  "/profile",
+  authUser(["VENDOR"]),
+  upload.fields([
+    { name: "logo", maxCount: 1 },
+    { name: "banner", maxCount: 1 },
+    { name: "verificationDoc", maxCount: 1 },
+  ]),
+  vendorController.editVendorProfile,
+);
 
 // ─────────────────────────────────────────
-// USERS (TEAMS + VENDORS)
+// BUSINESS SETTINGS
 // ─────────────────────────────────────────
-router.get("/users/pending", adminAuth, adminCtrl.getPendingUsers);
+router.put(
+  "/business-hours",
+  authUser(["VENDOR"]),
+  vendorController.updateBusinessHours,
+);
 
-// Teams
-router.get("/teams", adminAuth, adminCtrl.getAllTeams);
-router.put("/teams/:id/approve", adminAuth, adminCtrl.approveTeam);
-router.put("/teams/:id/reject", adminAuth, adminCtrl.rejectTeam);
+// ─────────────────────────────────────────
+// MEDIA & GALLERY
+// ─────────────────────────────────────────
+router.post(
+  "/gallery",
+  authUser(["VENDOR"]),
+  vendorController.uploadGalleryMiddleware,
+  vendorController.uploadGallery,
+);
 
-// Vendors
-router.get("/vendors", adminAuth, adminCtrl.getAllVendors);
-router.put("/vendors/:id/approve", adminAuth, adminCtrl.approveVendor);
-router.put("/vendors/:id/reject", adminAuth, adminCtrl.rejectVendor);
+router.post(
+  "/media",
+  authUser(["VENDOR"]),
+  upload.single("media"),
+  vendorController.uploadVendorMedia,
+);
 
+// ─────────────────────────────────────────
+// SERVICES & PROJECTS
+// ─────────────────────────────────────────
+router.post(
+  "/services",
+  authUser(["VENDOR"]),
+  vendorController.addVendorService,
+);
+
+router.post(
+  "/projects",
+  authUser(["VENDOR"]),
+  upload.single("image"),
+  vendorController.addProject,
+);
 
 // ─────────────────────────────────────────
 // PRODUCTS
 // ─────────────────────────────────────────
-router.get("/products/pending", adminAuth, adminCtrl.getPendingProducts);
+router.get("/me/products", authUser(["VENDOR", "TEAM_ADMIN"]), getMyProducts);
 
-router.put("/products/:id/approve", adminAuth, adminCtrl.approveProduct);
-router.put("/products/:id/reject", adminAuth, adminCtrl.rejectProduct);
-
-
-// ─────────────────────────────────────────
-// VERIFICATION DOCS
-// ─────────────────────────────────────────
-router.get("/verification", adminAuth, adminCtrl.fetchVerificationDocs);
-
-router.patch(
-  "/verification/:ownerType/:id",
-  adminAuth,
-  adminCtrl.updateVerificationStatus
-);
-
+// public vendor products
+router.get("/products/:vendorId", getVendorSpecificProducts);
 
 // ─────────────────────────────────────────
-// CONTENT MODERATION
+// PUBLIC PROFILE
 // ─────────────────────────────────────────
-router.post(
-  "/upload-media",
-  authUser(["ADMIN"]),
-  adminCtrl.saveAdminContent
-);
-
-router.get("/content", adminAuth, adminCtrl.getAdminContent);
-
-// Media Actions
-router.patch("/media/:mediaId/approve", adminAuth, adminCtrl.approveMedia);
-router.put("/media/:mediaId", adminAuth, adminCtrl.updateAdminMedia);
-router.delete("/media/:mediaId", adminAuth, adminCtrl.deleteAdminMedia);
-
+router.get("/:vendorId", vendorController.getPublicVendorProfile);
 
 module.exports = router;

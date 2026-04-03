@@ -181,8 +181,6 @@ router.delete(
   vehicleController.removeVehicle
 );
 
-
-
 // ─────────────────────────────────────────
 // DASHBOARD ROUTES
 // ─────────────────────────────────────────

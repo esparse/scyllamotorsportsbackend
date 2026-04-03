@@ -13,11 +13,6 @@ router.post(
   productCtrl.createProduct
 );
 
-
-
 router.get("/filters",productCtrl.getMarketplaceFilters)
-
-
-
 
 module.exports = router;
