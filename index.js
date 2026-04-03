@@ -39,7 +39,7 @@ app.use("/api", require("./routes/landingRoutes"))
 app.use("/api/teams", require("./routes/teamRoutes"));
 
 
-app.use("/api/admin", require("./routes/adminRoutes"));
+// app.use("/api/admin", require("./routes/adminRoutes"));
 
 // app.use("/api/products", require("./routes/productRoutes"));
 
@@ -54,7 +54,6 @@ app.use('/api/marketplace', require("./routes/marketplaceRoutes"));
 app.use('/api/contact', require("./routes/contactRoute"));
 
 // app.use("/api/events", require("./routes/eventRoutes"));
-app.use("/api/team-dashboard", require("./routes/teamDashboard"));
 
 app.use("/api/vendors/dashboard", require("./routes/vendorDashboardRoutes"));
 app.use("/api/vendors", require("./routes/vendorProductsAndServices"));

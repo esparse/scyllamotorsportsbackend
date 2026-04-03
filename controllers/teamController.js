@@ -1,685 +1,326 @@
-const Team = require("../models/Team");
-const cloudinary = require("../config/cloudinary");
-const multer = require("multer");
-const fs = require("fs");
 const bcrypt = require("bcryptjs");
-const logTeamActivity = require("../utils/activityLogger");
-const path = require("path");
 const jwt = require("jsonwebtoken");
-// const  CloudinaryStorage  = require("multer-storage-cloudinary");
+const fs = require("fs");
+const Team = require("../models/Team");
 const Member = require("../models/Member");
 const Vehicle = require("../models/Vehicle");
-const Admin = require("../models/Admin");
+const SocialLink = require("../models/SocialLink");
+const Event = require("../models/Event");
+const cloudinary = require("../config/cloudinary");
+const logTeamActivity = require("../utils/activityLogger");
 
-// Multer temp storage
-const upload = multer({ dest: "uploads/" });
-
-// Middleware
-exports.uploadTeamFiles = upload.fields([
-  { name: "logo", maxCount: 1 },
-  { name: "verificationDoc", maxCount: 1 },
-]);
-
-// const storage = new CloudinaryStorage({
-//   cloudinary,           // <-- your configured cloudinary
-//   params: {
-//     folder: "sponsors", // folder on Cloudinary
-//     allowed_formats: ["jpg", "jpeg", "png", "webp"],
-//     public_id: (req, file) => Date.now() + "-" + file.originalname,
-//   },
-// });
-// const galleryStorage = new CloudinaryStorage({
-//   cloudinary,
-//   params: {
-//     folder: "gallery",   // Cloudinary folder name
-//     allowed_formats: ["jpg", "jpeg", "png", "webp"],
-//     public_id: (req, file) =>
-//       `gallery-${req.team._id}-${Date.now()}`
-//   }
-// });
-
-// Register Team
+// ─────────────────────────────────────────
+// REGISTER TEAM
+// ─────────────────────────────────────────
 exports.registerTeam = async (req, res) => {
   try {
-    const { name, tagline, email, contactNo, category } = req.body;
+    const { name, tagline, email, password, contactNo, category } = req.body;
+
+    if (!name || !email || !password || !contactNo || !category) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
 
     let location;
-
     try {
       location = JSON.parse(req.body.location);
-    } catch (err) {
-      return res.status(400).json({
-        error: "Invalid location data",
-      });
+    } catch {
+      return res.status(400).json({ error: "Invalid location data" });
     }
 
     const { address, lat, lng } = location;
-
     if (!address || typeof lat !== "number" || typeof lng !== "number") {
-      return res.status(400).json({
-        error: "Please select your location from the map",
-      });
+      return res.status(400).json({ error: "Please select your location from the map" });
     }
 
     if (!req.files?.logo || !req.files?.verificationDoc) {
-      return res.status(400).json({ error: "Files missing" });
+      return res.status(400).json({ error: "Logo and verification document are required" });
     }
 
-    // Upload logo
-    const logoUpload = await cloudinary.uploader.upload(
-      req.files.logo[0].path,
-      { folder: "teams/logos" },
-    );
+    const exists = await Team.findOne({ email: email.toLowerCase() });
+    if (exists) {
+      return res.status(400).json({ error: "Email already registered" });
+    }
 
-    // Upload verification document
-    const docUpload = await cloudinary.uploader.upload(
-      req.files.verificationDoc[0].path,
-      { folder: "teams/docs", resource_type: "auto" },
-    );
-
-    // Clean temp files
+    const logoUpload = await cloudinary.uploader.upload(req.files.logo[0].path, {
+      folder: "teams/logos",
+    });
     fs.unlinkSync(req.files.logo[0].path);
+
+    const docUpload = await cloudinary.uploader.upload(req.files.verificationDoc[0].path, {
+      folder: "teams/docs",
+      resource_type: "auto",
+    });
     fs.unlinkSync(req.files.verificationDoc[0].path);
 
-    const hashedPassword = await bcrypt.hash(req.body.password, 10);
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const team = new Team({
+    const team = await Team.create({
       name,
       tagline,
       email,
+      password: hashedPassword,
       contactNo,
       category,
       logo: logoUpload.secure_url,
       verificationDoc: docUpload.secure_url,
-      password: hashedPassword,
-      location: {
-        address,
-        lat,
-        lng,
-      },
+      location: { address, lat, lng },
     });
-
-    await team.save();
 
     res.status(201).json({
       success: true,
-      message: "Team registered. Await admin approval.",
+      message: "Team registered successfully. Await admin approval.",
       teamId: team._id,
     });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
+    console.error("Register team error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-//Login Team
-
-// exports.loginTeam = async (req, res) => {
-
-//   const { email, password } = req.body;
-
-//   const team = await Team.findOne({ email }).select("+password");
-
-//   if (!team) return res.status(404).json({ error: "Account not found" });
-
-//   if (team.status !== "approved") {
-//     return res.status(403).json({ error: "Account pending admin approval" });
-//   }
-
-//   const isMatch = await bcrypt.compare(password, team.password);
-//   if (!isMatch) return res.status(401).json({ error: "Invalid credentials" });
-
-//   const token = jwt.sign(
-//     { id: team._id, role: "team" },
-//     process.env.JWT_SECRET,
-//     { expiresIn: "7d" }
-//   );
-
-//   res.json({
-//     token,
-//     team: {
-//       id: team._id,
-//       name: team.name,
-//       role: "team"
-//     }
-//   });
-// };
-
+// ─────────────────────────────────────────
+// LOGIN TEAM (also handles member login)
+// ─────────────────────────────────────────
 exports.loginTeam = async (req, res) => {
-  const { email, password } = req.body;
+  try {
+    const { email, password } = req.body;
 
-  // =========================
-  // 1. TRY TEAM LOGIN FIRST
-  // =========================
-  const team = await Team.findOne({ email }).select("+password");
-
-  if (team) {
-    if (team.status !== "approved") {
-      return res.status(403).json({ error: "Account pending admin approval" });
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
     }
 
-    const isMatch = await bcrypt.compare(password, team.password);
+    // 1. try team login
+    const team = await Team.findOne({ email }).select("+password");
+
+    if (team) {
+      if (team.status !== "approved") {
+        return res.status(403).json({ error: "Account pending admin approval" });
+      }
+
+      const isMatch = await bcrypt.compare(password, team.password);
+      if (!isMatch) {
+        return res.status(401).json({ error: "Invalid credentials" });
+      }
+
+      const token = jwt.sign(
+        { id: team._id, role: "TEAM_ADMIN" },
+        process.env.JWT_SECRET,
+        { expiresIn: "7d" }
+      );
+
+      return res.json({
+        token,
+        user: { id: team._id, name: team.name, role: "TEAM_ADMIN" },
+      });
+    }
+
+    // 2. try member login
+    const member = await Member.findOne({ email }).select("+password");
+
+    if (!member) {
+      return res.status(404).json({ error: "Account not found" });
+    }
+
+    if (!member.isActive) {
+      return res.status(403).json({ error: "Please set your password first via the email link" });
+    }
+
+    const isMatch = await bcrypt.compare(password, member.password);
     if (!isMatch) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
     const token = jwt.sign(
-      {
-        id: team._id,
-        role: "TEAM_ADMIN", // <-- set correct role
-      },
+      { id: member._id, role: "MEMBER" },
       process.env.JWT_SECRET,
-      { expiresIn: "7d" }, // or your desired expiry
+      { expiresIn: "7d" }
     );
 
     return res.json({
       token,
       user: {
-        id: team._id,
-        name: team.name,
-        role: "TEAM_ADMIN",
+        id: member._id,
+        name: member.name,
+        role: "MEMBER",
+        teamId: member.team,
       },
     });
+  } catch (err) {
+    console.error("Login error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
-
-  // =========================
-  // 2. TRY MEMBER LOGIN
-  // =========================
-  const member = await Member.findOne({ email }).select("+password");
-
-  if (!member) {
-    return res.status(404).json({ error: "Account not found" });
-  }
-
-  if (!member.isActive) {
-    return res.status(403).json({ error: "Password not set" });
-  }
-
-  const isMatch = await bcrypt.compare(password, member.password);
-  if (!isMatch) {
-    return res.status(401).json({ error: "Invalid credentials" });
-  }
-
-  const token = jwt.sign(
-    {
-      id: member._id,
-      role: "MEMBER", // <-- set correct role
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: "7d" },
-  );
-
-  res.json({
-    token,
-    user: {
-      id: member._id,
-      name: member.name,
-      role: "MEMBER",
-      teamId: member.team,
-    },
-  });
 };
 
-// get Team profile
-
-// exports.getTeamProfile = async (req, res) => {
-//   try {
-//     // console.log("req.team:", req.team);
-//     // const teamId = req.user.role === "MEMBER" ? req.user.team : req.user._id;
-
-//     const team = await Team.findById(req.team._id)
-//     // .populate("vehicles")
-//     // .populate("members");
-
-//     // console.log("team fetched:", team);
-
-//     if (!team) return res.status(404).json({ error: "Team not found" });
-//     // Include media URLs in response
-//     const mediaUrls = (team.media || []).map(
-//       (file) => `${req.protocol}://${req.get("host")}/${file}`
-//     );
-
-//     res.json({ ...team.toObject(), media: mediaUrls, achievements: team.achievements || [], gallery: team.gallery || [] });
-//     // res.json(team);
-//   } catch (err) {
-//     console.error(err); // print full error in console
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
-
-// teamController.js
-
+// ─────────────────────────────────────────
+// GET TEAM PROFILE (protected)
+// ─────────────────────────────────────────
 exports.getTeamProfile = async (req, res) => {
   try {
-    if (!req.user) return res.status(401).json({ error: "User not found" });
-
     let teamProfile = null;
     let teamId = null;
 
     if (req.user.role === "TEAM_ADMIN") {
-      // TEAM_ADMIN → fetch their own team
       teamProfile = await Team.findById(req.user._id).lean();
-      teamId = teamProfile._id;
+      teamId = req.user._id;
     } else if (req.user.role === "MEMBER") {
-      // MEMBER → fetch the team of the member
       const member = await Member.findById(req.user._id).lean();
       if (!member) return res.status(404).json({ error: "Member not found" });
-
       teamProfile = await Team.findById(member.team).lean();
       teamId = member.team;
     }
 
     if (!teamProfile) return res.status(404).json({ error: "Team not found" });
 
-    // Include media URLs if needed
-    const mediaUrls = (teamProfile.media || []).map(
-      (file) => `${req.protocol}://${req.get("host")}/${file}`,
-    );
-
-    // Fetch all members of this team
-    const teamMembers = await Member.find({ team: teamId }).lean();
-
-    const socialMedia = await SocialLink.find({ team: teamId }).lean();
+    const [teamMembers, eventsCount, socialMedia] = await Promise.all([
+      Member.find({ team: teamId }).lean(),
+      Event.countDocuments({ "participants.team": teamId }),
+      SocialLink.find({ team: teamId }).lean(),
+    ]);
 
     res.json({
       ...teamProfile,
-      media: mediaUrls,
-      achievements: teamProfile.achievements || [],
-      gallery: teamProfile.gallery || [],
-      members: teamMembers || [], // array of team members
-      currentMember: req.user.role === "MEMBER" ? req.user : null, // optional
+      members: teamMembers || [],
+      eventsCount,
       socialMedia,
+      gallery: teamProfile.gallery || [],
+      currentMember: req.user.role === "MEMBER" ? req.user : null,
     });
   } catch (err) {
-    console.error(err);
+    console.error("Get team profile error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// for testing purposes (bypass auth) - remove in production
-// exports.getTeamProfile = async (req, res) => {
-//   try {
-//     // 🔥 TEMP: bypass auth
-//     req.user = {
-//       _id: "69ceb6f14e547a1ca6f61271",
-//       role: "TEAM_ADMIN", // ya "MEMBER"
-//     };
-
-//     let teamProfile = null;
-//     let teamId = null;
-
-//     if (req.user.role === "TEAM_ADMIN") {
-//       teamProfile = await Team.findById(req.user._id).lean();
-//       teamId = teamProfile?._id;
-//     } else if (req.user.role === "MEMBER") {
-//       const member = await Member.findById(req.user._id).lean();
-//       if (!member) return res.status(404).json({ error: "Member not found" });
-
-//       teamProfile = await Team.findById(member.team).lean();
-//       teamId = member.team;
-//     }
-
-//     if (!teamProfile) return res.status(404).json({ error: "Team not found" });
-
-//     const mediaUrls = (teamProfile.media || []).map(
-//       (file) => `${req.protocol}://${req.get("host")}/${file}`
-//     );
-
-//     const teamMembers = await Member.find({ team: teamId }).lean();
-//     const socialMedia = await SocialLink.find({ team: teamId }).lean();
-
-//     res.json({
-//       ...teamProfile,
-//       media: mediaUrls,
-//       achievements: teamProfile.achievements || [],
-//       gallery: teamProfile.gallery || [],
-//       members: teamMembers || [],
-//       currentMember: req.user.role === "MEMBER" ? req.user : null,
-//       socialMedia,
-//     });
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
-
-// Update team profile
+// ─────────────────────────────────────────
+// UPDATE TEAM PROFILE
+// ─────────────────────────────────────────
 exports.updateTeamProfile = async (req, res) => {
-  let logoUpload = null;
-  let docUpload = null;
-
   try {
-    const team = await Team.findById(req.team.id);
+    // only team admin can update
+    if (req.user.role !== "TEAM_ADMIN") {
+      return res.status(403).json({ error: "Only team admin can update team details" });
+    }
+
+    const team = await Team.findById(req.team._id);
     if (!team) return res.status(404).json({ error: "Team not found" });
 
-    // Use req.body for text fields
-    const { name, tagline, contactNo, category, description, location } =
-      req.body;
+    const { name, tagline, contactNo, category, description } = req.body;
 
-    if (name) team.name = name;
-    if (tagline) team.tagline = tagline;
-    if (contactNo) team.contactNo = contactNo;
-    if (category) team.category = category;
+    if (name)        team.name = name;
+    if (tagline)     team.tagline = tagline;
+    if (contactNo)   team.contactNo = contactNo;
+    if (category)    team.category = category;
     if (description) team.description = description;
-    if (location) {
+
+    if (req.body.location) {
       try {
-        const loc =
-          typeof location === "string" ? JSON.parse(location) : location;
+        const loc = typeof req.body.location === "string"
+          ? JSON.parse(req.body.location)
+          : req.body.location;
 
         team.location = {
           address: loc.address || team.location.address,
-          lat:
-            loc.lat !== undefined && loc.lat !== null
-              ? Number(loc.lat)
-              : team.location.lat,
-          lng:
-            loc.lng !== undefined && loc.lng !== null
-              ? Number(loc.lng)
-              : team.location.lng,
+          lat: loc.lat !== undefined ? Number(loc.lat) : team.location.lat,
+          lng: loc.lng !== undefined ? Number(loc.lng) : team.location.lng,
         };
-      } catch (err) {
+      } catch {
         return res.status(400).json({ error: "Invalid location format" });
       }
     }
 
-    // 🔹 Social media (KEEP VARIABLE NAME)
-    // if (socialMedia) {
-    //   let sm = {};
-
-    //   if (typeof socialMedia === "string") {
-    //     try {
-    //       sm = JSON.parse(socialMedia);
-    //     } catch (err) {
-    //       return res.status(400).json({ error: "Invalid socialMedia format" });
-    //     }
-    //   } else if (typeof socialMedia === "object") {
-    //     sm = socialMedia;
-    //   }
-
-    //   team.socialMedia = {
-    //     ...team.socialMedia,
-    //     ...sm
-    //   };
-    // }
-
-    // 🔹 Logo upload (Cloudinary)
     if (req.files?.logo?.[0]) {
-      logoUpload = await cloudinary.uploader.upload(req.files.logo[0].path, {
+      const logoUpload = await cloudinary.uploader.upload(req.files.logo[0].path, {
         folder: "teams/logos",
       });
-
-      // delete old logo if exists
-      if (team.logo?.public_id) {
-        await cloudinary.uploader.destroy(team.logo.public_id);
-      }
-
+      fs.unlinkSync(req.files.logo[0].path);
       team.logo = logoUpload.secure_url;
     }
 
-    // 🔹 Verification doc upload (Cloudinary)
     if (req.files?.verificationDoc?.[0]) {
-      docUpload = await cloudinary.uploader.upload(
-        req.files.verificationDoc[0].path,
-        {
-          folder: "teams/docs",
-          resource_type: "auto",
-        },
-      );
-
-      // delete old doc if exists
-      if (team.verificationDoc?.public_id) {
-        await cloudinary.uploader.destroy(team.verificationDoc.public_id);
-      }
-
+      const docUpload = await cloudinary.uploader.upload(req.files.verificationDoc[0].path, {
+        folder: "teams/docs",
+        resource_type: "auto",
+      });
+      fs.unlinkSync(req.files.verificationDoc[0].path);
       team.verificationDoc = docUpload.secure_url;
     }
+
     await team.save();
 
     await logTeamActivity(
       team._id,
       "TEAM_UPDATED",
       "Profile updated",
-      "Team profile information was updated",
+      "Team profile was updated"
     );
 
     res.json({ success: true, message: "Profile updated", team });
   } catch (err) {
-    console.error(err);
-
-    // rollback new uploads if error
-    if (logoUpload?.public_id) {
-      await cloudinary.uploader.destroy(logoUpload.public_id);
-    }
-    if (docUpload?.public_id) {
-      await cloudinary.uploader.destroy(docUpload.public_id);
-    }
-
-    res.status(500).json({ error: "Server error" });
-  } finally {
-    // 🔹 clean temp files
-    if (req.files?.logo?.[0]?.path) {
-      fs.unlink(req.files.logo[0].path, () => {});
-    }
-    if (req.files?.verificationDoc?.[0]?.path) {
-      fs.unlink(req.files.verificationDoc[0].path, () => {});
-    }
-  }
-};
-
-exports.uploadTeamMedia = async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-
-    const destFolder = path.join(__dirname, "../uploads/teams/media");
-    if (!fs.existsSync(destFolder))
-      fs.mkdirSync(destFolder, { recursive: true });
-
-    const uniqueName = `${Date.now()}-${req.file.originalname}`;
-    const newFilePath = path.join(destFolder, uniqueName);
-    fs.renameSync(req.file.path, newFilePath);
-
-    const team = await Team.findById(req.team._id);
-    team.media = team.media
-      ? [...team.media, `uploads/teams/media/${uniqueName}`]
-      : [`uploads/teams/media/${uniqueName}`];
-    await team.save();
-
-    const mediaUrls = team.media.map(
-      (f) => `${req.protocol}://${req.get("host")}/${f}`,
-    );
-    await logTeamActivity(
-      team._id,
-      "TEAM_UPDATED",
-      "Profile updated",
-      "Team profile information was updated",
-    );
-    res.status(200).json({ message: "Media uploaded", media: mediaUrls });
-  } catch (err) {
-    console.error(err);
+    console.error("Update team profile error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// Add achievement
-exports.addAchievement = async (req, res) => {
+// ─────────────────────────────────────────
+// GET ALL APPROVED TEAMS (public)
+// ─────────────────────────────────────────
+exports.getAllApprovedTeams = async (req, res) => {
   try {
-    const { title, description, year } = req.body;
-    if (!title) return res.status(400).json({ error: "Title is required" });
+    const teams = await Team.find({ status: "approved" })
+      .select(
+        "name description tagline logo category location eventsParticipated eventsWon createdAt"
+        // add 'banner' here once banner field is added to model
+      )
+      .sort({ createdAt: -1 })
+      .lean();
 
-    const team = await Team.findById(req.team._id);
-    if (!team) return res.status(404).json({ error: "Team not found" });
+    const teamsWithDetails = await Promise.all(
+      teams.map(async (team) => {
+        const [members, vehicles] = await Promise.all([
+          Member.find({ team: team._id })
+            .select("name role profilePic bio")
+            .lean(),
+          Vehicle.find({ team: team._id })
+            .select("name type image year")
+            .lean(),
+        ]);
 
-    const achievement = {
-      title,
-      description,
-      year: year ? parseInt(year) : new Date().getFullYear(),
-    };
-    team.achievements.push(achievement);
-    await team.save();
-
-    await logTeamActivity(
-      team._id,
-      "ACHIVEMENT_ADDED",
-      "Achivement Added",
-      "Team profile  was updated",
-    );
-
-    res.status(201).json(achievement);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-};
-
-// delete the achivements
-exports.deleteAchievement = async (req, res) => {
-  try {
-    const achievementId = req.params.id;
-
-    // find the team
-    const team = await Team.findById(req.team._id); // use the authenticated team
-    if (!team) return res.status(404).json({ message: "Team not found" });
-
-    // remove achievement
-    const initialLength = team.achievements.length;
-    team.achievements = team.achievements.filter(
-      (a) => a._id.toString() !== achievementId,
-    );
-
-    if (team.achievements.length === initialLength) {
-      return res.status(404).json({ message: "Achievement not found" });
-    }
-
-    await team.save();
-
-    res.status(200).json({ message: "Achievement deleted", id: achievementId });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
-  }
-};
-
-const uploadSponsor = multer({ storage: multer.memoryStorage() });
-
-// add sponser logos
-// Multer memory storage
-exports.uploadSponsorLogo = [
-  uploadSponsor.single("logo"), // multer middleware
-  async (req, res) => {
-    try {
-      if (!req.file) return res.status(400).json({ error: "Logo required" });
-
-      const team = await Team.findById(req.team._id);
-      if (!team) return res.status(404).json({ error: "Team not found" });
-
-      // Upload to Cloudinary using upload_stream
-      const streamUpload = (fileBuffer) => {
-        return new Promise((resolve, reject) => {
-          const stream = cloudinary.uploader.upload_stream(
-            { folder: "sponsors" },
-            (error, result) => {
-              if (error) reject(error);
-              else resolve(result);
-            },
-          );
-          stream.end(fileBuffer);
-        });
-      };
-
-      const result = await streamUpload(req.file.buffer);
-
-      const sponsor = {
-        name: req.body.name || "",
-        logo: result.secure_url, // Cloudinary URL
-        category: req.body.category || "title",
-        website: req.body.website || "",
-        initials:
-          req.body.initials ||
-          (req.body.name ? req.body.name.charAt(0).toUpperCase() : ""),
-      };
-
-      team.sponsors = team.sponsors ? [...team.sponsors, sponsor] : [sponsor];
-      await team.save();
-
-      await logTeamActivity(
-        team._id,
-        "SPONSOR_ADDED",
-        "Sponsor logo added",
-        "Team profile information was updated",
-      );
-
-      res.status(200).json({
-        message: "Sponsor uploaded",
-        sponsors: team.sponsors, // frontend-ready
-      });
-    } catch (err) {
-      console.error("UPLOAD SPONSOR ERROR:", err);
-      res.status(500).json({ error: "Server error" });
-    }
-  },
-];
-
-// delete sponsor
-exports.deleteSponsor = async (req, res) => {
-  try {
-    const team = await Team.findById(req.team._id);
-    if (!team) return res.status(404).json({ error: "Team not found" });
-
-    const sponsorId = req.params.id;
-
-    // Filter out the sponsor to delete
-    team.sponsors = team.sponsors.filter((s) => s._id.toString() !== sponsorId);
-
-    await team.save();
-
-    await logTeamActivity(
-      team._id,
-      "SPONSOR_DELETED",
-      "Sponsor removed",
-      "Team profile information was updated",
-    );
-
-    res.status(200).json({
-      message: "Sponsor deleted",
-      sponsors: team.sponsors.map((s) => ({ ...s.toObject(), id: s._id })),
-    });
-  } catch (err) {
-    console.error("DELETE SPONSOR ERROR:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-};
-
-// upload media gallery
-const uploadGalleryImg = multer({ storage: multer.memoryStorage() });
-
-exports.uploadGalleryMiddleware = uploadGalleryImg.array("gallery", 10);
-
-const uploadToCloudinary = (buffer) =>
-  new Promise((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream({ folder: "gallery" }, (err, result) => {
-        if (err) reject(err);
-        else resolve(result.secure_url);
+        return {
+          ...team,
+          members,
+          vehicles,
+          // banner: team.banner || null,
+        };
       })
-      .end(buffer);
-  });
+    );
 
+    res.json({ success: true, teams: teamsWithDetails });
+  } catch (err) {
+    console.error("Get all teams error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// UPLOAD GALLERY
+// ─────────────────────────────────────────
 exports.uploadGallery = async (req, res) => {
   try {
     const team = await Team.findById(req.team._id);
-    if (!team) {
-      return res.status(404).json({ error: "Team not found" });
-    }
+    if (!team) return res.status(404).json({ error: "Team not found" });
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: "No files uploaded" });
     }
 
-    // CloudinaryStorage gives URL in file.path
-    const urls = [];
-    for (const file of req.files) {
-      const url = await uploadToCloudinary(file.buffer);
-      urls.push(url);
-    }
+    const urls = await Promise.all(
+      req.files.map(async (file) => {
+        const result = await cloudinary.uploader.upload(file.path, {
+          folder: "gallery",
+        });
+        fs.unlinkSync(file.path);
+        return result.secure_url;
+      })
+    );
 
     team.gallery.unshift(...urls);
     await team.save();
@@ -688,212 +329,80 @@ exports.uploadGallery = async (req, res) => {
       team._id,
       "GALLERY_UPDATED",
       "Gallery updated",
-      "Team gallery images uploaded",
+      "New images added to gallery"
     );
 
-    res.status(200).json({
-      message: "Gallery uploaded successfully",
-      gallery: team.gallery,
-    });
-    console.log("REQ FILES:", req.files);
-    console.log("REQ BODY:", req.body);
+    res.json({ success: true, gallery: team.gallery });
   } catch (err) {
-    console.error("UPLOAD GALLERY ERROR:", err);
+    console.error("Upload gallery error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// delete media gallery
+// ─────────────────────────────────────────
+// DELETE GALLERY IMAGE
+// ─────────────────────────────────────────
 exports.deleteGalleryMedia = async (req, res) => {
   try {
-    const { mediaUrl } = req.query; // <-- from query param
+    const { mediaUrl } = req.query;
+    if (!mediaUrl) return res.status(400).json({ error: "Media URL is required" });
+
     const team = await Team.findById(req.team._id);
     if (!team) return res.status(404).json({ error: "Team not found" });
 
     team.gallery = team.gallery.filter((url) => url !== mediaUrl);
     await team.save();
 
-    res
-      .status(200)
-      .json({ message: "Media deleted successfully", gallery: team.gallery });
+    res.json({ success: true, gallery: team.gallery });
   } catch (err) {
-    console.error(err);
+    console.error("Delete gallery error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// fetch the teams list in landing page
-exports.getAllTeams = async (req, res) => {
-  console.log("GET /api/teams HIT");
-  try {
-    const teams = await Team.find({})
-      .select(
-        "name tagline logo location achievements createdAt", // only public fields
-      )
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const formattedTeams = teams.map((team) => ({
-      ...team,
-      logo: team.logo
-        ? `${req.protocol}://${req.get("host")}/${team.logo}`
-        : null,
-    }));
-
-    res.json(formattedTeams);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Server error" });
-  }
-};
-
-// fetch all team data in the landing page:
-// exports.getPublicTeamProfile = async (req, res) => {
-//   try {
-//     const { teamId } = req.params;
-
-//     const team = await Team.findById(teamId).lean();
-//     if (!team) return res.status(404).json({ error: "Team not found" });
-
-//     const mediaUrls = (team.media || []).map(
-//       file => `${req.protocol}://${req.get("host")}/${file}`
-//     );
-
-//     const members = await Member.find({ team: teamId })
-//       .select("-password -email") // hide sensitive data
-//       .lean();
-
-//     res.json({
-//       ...team,
-//       media: mediaUrls,
-//       members
-//     });
-
-//   } catch (err) {
-//     console.error(err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
-
-const SocialLink = require("../models/SocialLink");
-
-// ================= ADD SOCIAL LINK =================
+// ─────────────────────────────────────────
+// ADD SOCIAL LINK
+// ─────────────────────────────────────────
 exports.addSocialLink = async (req, res) => {
   try {
-    // req.team._id comes from your teamAuth middleware
-    const teamId = req.team._id;
-
     const { platform, handle, url, icon } = req.body;
 
+    if (!platform || !url) {
+      return res.status(400).json({ error: "Platform and URL are required" });
+    }
+
     const link = await SocialLink.create({
-      team: teamId,
+      team: req.team._id,
       platform,
       handle,
       url,
       icon: icon || "",
     });
 
-    res.status(201).json(link);
+    res.status(201).json({ success: true, link });
   } catch (err) {
-    console.error("ADD SOCIAL LINK ERROR:", err);
+    console.error("Add social link error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-// ================= DELETE SOCIAL LINK =================
+// ─────────────────────────────────────────
+// DELETE SOCIAL LINK
+// ─────────────────────────────────────────
 exports.deleteSocialLink = async (req, res) => {
   try {
-    const teamId = req.team._id;
-    const linkId = req.params.id;
+    const link = await SocialLink.findOne({
+      _id: req.params.id,
+      team: req.team._id,
+    });
 
-    const link = await SocialLink.findOne({ _id: linkId, team: teamId });
     if (!link) return res.status(404).json({ error: "Link not found" });
 
     await link.deleteOne();
 
-    res.status(200).json({ message: "Link deleted", id: linkId });
+    res.json({ success: true, message: "Social link deleted" });
   } catch (err) {
-    console.error("DELETE SOCIAL LINK ERROR:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-};
-
-// Get all social links for the team
-// exports.getSocialLinks = async (req, res) => {
-//   try {
-//     const teamId = req.team._id;
-//     const links = await SocialLink.find({ team: teamId });
-//     res.status(200).json(links);
-//   } catch (err) {
-//     console.error("GET SOCIAL LINKS ERROR:", err);
-//     res.status(500).json({ error: "Server error" });
-//   }
-// };
-
-// Add member
-
-exports.addMember = async (req, res) => {
-  try {
-    const teamId = req.team._id;
-
-    const { name, email, password = "tempPass123" } = req.body;
-
-    if (!name || !email) {
-      return res.status(400).json({ error: "Name and email are required" });
-    }
-
-    const existingMember = await Member.findOne({ email: email.toLowerCase() });
-    if (existingMember) {
-      return res.status(400).json({ error: "Email already in use" });
-    }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const member = new Member({
-      team: teamId,
-      name,
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      isActive: false,
-    });
-
-    await member.save();
-
-    res.status(201).json({
-      success: true,
-      message: "Member added successfully",
-      member: {
-        name: member.name,
-        email: member.email,
-      },
-    });
-  } catch (err) {
-    console.error("ADD MEMBER ERROR:", err);
-    res.status(500).json({ error: "Server error" });
-  }
-};
-
-exports.removeMember = async (req, res) => {
-  try {
-    const teamId = req.team._id;
-    const memberId = req.params.id;
-
-    const member = await Member.findOneAndDelete({
-      _id: memberId,
-      team: teamId,
-    });
-
-    if (!member) {
-      return res.status(404).json({ error: "Member not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: "Member removed successfully",
-    });
-
-  } catch (err) {
-    console.error("REMOVE MEMBER ERROR:", err);
+    console.error("Delete social link error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };

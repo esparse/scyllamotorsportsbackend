@@ -13,14 +13,19 @@ const memberSchema = new mongoose.Schema({
   bio: String,
   profilePic: String,
 
-  certificates: [
-    {
-      name: { type: String, required: true },
-      url: { type: String },
-      expiryDate: { type: Date },
-      uploadedAt: { type: Date, default: Date.now },
-    },
-  ],
+ certificates: [
+  {
+    name: { type: String, required: true },
+    url: { type: String },
+    expiryDate: { type: Date },
+    uploadedAt: { type: Date, default: Date.now },
+
+    // verification fields
+    verified: { type: Boolean, default: false },
+    verifiedAt: { type: Date },
+    verifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: "Team" },
+  },
+],
 
   email: {
     type: String,

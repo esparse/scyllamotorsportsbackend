@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const Team = require("../models/Team");
 const Member = require("../models/Member");
 const Vendor = require("../models/Vendor");
+const Admin = require("../models/Admin");
 
 module.exports = (roles = []) => {
   return async (req, res, next) => {
@@ -26,6 +27,9 @@ module.exports = (roles = []) => {
       } else if (userRole.toUpperCase() === "VENDOR") {
         user = await Vendor.findById(decoded.id).lean();
         userRole = "VENDOR";
+      } else if (userRole.toLowerCase() === "admin") {
+        user = await Admin.findById(decoded.id).lean();
+        userRole = "admin";
       }
 
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -33,9 +37,14 @@ module.exports = (roles = []) => {
       req.user = user;
       req.user.role = userRole;
 
-      
+      // attach req.team for team admin
       if (userRole === "TEAM_ADMIN") {
         req.team = user;
+      }
+
+      // attach req.vendor for vendor
+      if (userRole === "VENDOR") {
+        req.vendor = user;
       }
 
       if (roles.length && !roles.includes(userRole)) {
@@ -44,7 +53,7 @@ module.exports = (roles = []) => {
 
       next();
     } catch (err) {
-      console.error(err);
+      console.error("Auth error:", err.message);
       return res.status(401).json({ error: "Invalid token" });
     }
   };

@@ -1,130 +1,164 @@
-const Team = require("../models/Team");
-const Vendor = require("../models/Vendor");
-const Admin = require("../models/Admin");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
+const fs = require("fs");
+const Admin = require("../models/Admin");
+const Team = require("../models/Team");
+const Vendor = require("../models/Vendor");
+const Product = require("../models/Product");
+const cloudinary = require("../config/cloudinary");
 const sendMail = require("../utils/mailer");
 const logTeamActivity = require("../utils/activityLogger");
-const cloudinary = require("../config/cloudinary");
-const multer = require("multer");
-const Product = require("../models/Product");
 
-
-
-exports.upload = multer({
-  storage: multer.diskStorage({}),
-  limits: { fileSize: 50 * 1024 * 1024 },
-}).single("file");
-
-
-//Login
+// ─────────────────────────────────────────
+// LOGIN
+// ─────────────────────────────────────────
 exports.adminLogin = async (req, res) => {
-  const { email, password } = req.body;
-  const Admin = require("../models/Admin");
-  const bcrypt = require("bcryptjs");
-  const jwt = require("jsonwebtoken");
-
   try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
     const admin = await Admin.findOne({ email }).select("+password");
     if (!admin) return res.status(400).json({ error: "Invalid credentials" });
 
     const isMatch = await bcrypt.compare(password, admin.password);
     if (!isMatch) return res.status(400).json({ error: "Invalid credentials" });
 
-    const token = jwt.sign({ id: admin._id, role: admin.role }, process.env.JWT_SECRET, {
-      expiresIn: "7d"
-    });
+    const token = jwt.sign(
+      { id: admin._id, role: admin.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "7d" }
+    );
 
     res.json({ token });
   } catch (err) {
-    res.status(500).json({ error: "Server error" , errorDetails: err.message});
-  }
-};
-
-exports.getAdminProfile = async (req, res) => {
-  try {
-    // req.user comes from your JWT middleware
-    const admin = await Admin.findById(req.user.id).select("-password");
-    if (!admin) {
-      return res.status(404).json({ error: "Admin not found" });
-    }
-
-    res.json(admin);
-  } catch (err) {
-    console.error("Error fetching admin profile:", err);
+    console.error("Admin login error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
+// ─────────────────────────────────────────
+// GET ADMIN PROFILE
+// ─────────────────────────────────────────
+exports.getAdminProfile = async (req, res) => {
+  try {
+    const admin = await Admin.findById(req.user.id).select("-password");
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
 
+    res.json(admin);
+  } catch (err) {
+    console.error("Get admin profile error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// UPDATE ADMIN
+// ─────────────────────────────────────────
 exports.updateAdmin = async (req, res) => {
   try {
-    const adminId = req.user.id; // <--- safe now
     const { name, email, password } = req.body;
 
     const updateData = {};
     if (name) updateData.name = name;
     if (email) updateData.email = email.toLowerCase();
-    if (password) {
-      const hashedPassword = await bcrypt.hash(password, 10);
-      updateData.password = hashedPassword;
-    }
+    if (password) updateData.password = await bcrypt.hash(password, 10);
 
     const updatedAdmin = await Admin.findByIdAndUpdate(
-      adminId,
+      req.user.id,
       { $set: updateData },
       { new: true }
     ).select("-password");
 
     if (!updatedAdmin) return res.status(404).json({ error: "Admin not found" });
 
-    res.json({
-      message: "Admin details updated successfully",
-      admin: updatedAdmin,
-    });
+    res.json({ success: true, message: "Admin updated successfully", admin: updatedAdmin });
   } catch (err) {
-    console.error("Error updating admin:", err);
+    console.error("Update admin error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// Pending users
+// ─────────────────────────────────────────
+// GET PENDING USERS (teams + vendors)
+// ─────────────────────────────────────────
 exports.getPendingUsers = async (req, res) => {
-  const teams = await Team.find();
-  const vendors = await Vendor.find();
+  try {
+    const [teams, vendors] = await Promise.all([
+      Team.find({ status: "pending" }).lean(),
+      Vendor.find({ status: "pending" }).lean(),
+    ]);
 
-  res.json({ teams, vendors });
+    res.json({ teams, vendors });
+  } catch (err) {
+    console.error("Get pending users error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
 };
 
-// Approve Team
-// exports.approveTeam = async (req, res) => {
-//   await Team.findByIdAndUpdate(req.params.id, { status: "approved" });
-//   res.json({ message: "Team approved" });
-//   await sendMail(
-//       Team.email,
-//       "Team Approved ✅",
-//       `Your team "${team.name}" has been approved by admin.`,
-//       `<h3>Hello ${team.name}</h3><p>Your team has been <b>approved</b>. You can now access the dashboard.</p>`
-//     );
+// ─────────────────────────────────────────
+// GET ALL VENDORS
+// ─────────────────────────────────────────
+exports.getAllVendors = async (req, res) => {
+  try {
+    const vendors = await Vendor.find({})
+      .select("businessName category logo location status createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
 
-//     res.json({ message: "Team approved and email sent." });
-// };
+    res.json({ success: true, vendors });
+  } catch (err) {
+    console.error("Get all vendors error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
 
+// ─────────────────────────────────────────
+// GET ALL TEAMS
+// ─────────────────────────────────────────
+exports.getAllTeams = async (req, res) => {
+  try {
+    const teams = await Team.find({})
+      .select("name category logo location status createdAt")
+      .sort({ createdAt: -1 })
+      .lean();
 
+    res.json({ success: true, teams });
+  } catch (err) {
+    console.error("Get all teams error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// GET PENDING PRODUCTS
+// ─────────────────────────────────────────
+exports.getPendingProducts = async (req, res) => {
+  try {
+    const products = await Product.find({ status: "pending" })
+      .populate("createdBy", "name businessName")
+      .lean();
+
+    res.json({ success: true, products });
+  } catch (err) {
+    console.error("Get pending products error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// APPROVE TEAM
+// ─────────────────────────────────────────
 exports.approveTeam = async (req, res) => {
   try {
-    // 1️⃣ Get team
     const team = await Team.findById(req.params.id);
-    if (!team) {
-      return res.status(404).json({ error: "Team not found" });
-    }
+    if (!team) return res.status(404).json({ error: "Team not found" });
 
-    // 2️⃣ Approve team
     team.status = "approved";
     await team.save();
 
-    // 3️⃣ Log FIRST activity
     await logTeamActivity(
       team._id,
       "TEAM_APPROVED",
@@ -132,42 +166,37 @@ exports.approveTeam = async (req, res) => {
       `Your team "${team.name}" has been approved`
     );
 
-    res.json({ message: "Team approved" });
-
-    // 4️⃣ Send email (non-blocking is even better)
     sendMail({
       to: team.email,
       subject: "Team Approved ✅",
-      text: `Your team "${team.name}" has been approved by admin.`,
       html: `
-        <h3>Hello ${team.name}</h3>
-        <p>Your team has been <b>approved</b>.</p>
-        <p>You can now access your dashboard.</p>
-      `
-    }).catch(err => {
-      console.error("Email sending failed:", err.message);
-    });
+        <h2>Hello ${team.name}!</h2>
+        <p>Great news! Your team has been <b>approved</b> by the admin.</p>
+        <p>You can now log in and access your full dashboard.</p>
+        <p>Welcome to the platform!</p>
+      `,
+    }).catch((err) => console.error("Email error:", err.message));
 
-
+    res.json({ success: true, message: "Team approved" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to approve team" });
+    console.error("Approve team error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// Reject Team
+// ─────────────────────────────────────────
+// REJECT TEAM
+// ─────────────────────────────────────────
 exports.rejectTeam = async (req, res) => {
   try {
-    // 1️⃣ Fetch team
     const team = await Team.findById(req.params.id);
     if (!team) return res.status(404).json({ error: "Team not found" });
 
-    // 2️⃣ Update status
+    const { reason } = req.body; // optional rejection reason
+
     team.status = "rejected";
     await team.save();
 
-    // 3️⃣ Log activity
     await logTeamActivity(
       team._id,
       "TEAM_REJECTED",
@@ -175,357 +204,371 @@ exports.rejectTeam = async (req, res) => {
       `Your team "${team.name}" has been rejected`
     );
 
-    // 4️⃣ Send email asynchronously
     sendMail({
       to: team.email,
-      subject:"Team Rejected ❌",
-      text: `Your team "${team.name}" has been rejected by admin.`,
-      html:
-      `<h3>Hello ${team.name}</h3>
-       <p>Your team has been <b>rejected</b>. Please contact admin for more details.</p>`
-  }).catch(err => console.error("Email error:", err));
+      subject: "Team Application Rejected ❌",
+      html: `
+        <h2>Hello ${team.name},</h2>
+        <p>Unfortunately, your team application has been <b>rejected</b>.</p>
+        ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
+        <p>Please contact admin for more details or to reapply.</p>
+      `,
+    }).catch((err) => console.error("Email error:", err.message));
 
-    // 5️⃣ Respond once
-    res.json({ message: "Team rejected and email sent." });
-
+    res.json({ success: true, message: "Team rejected" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to reject team" });
+    console.error("Reject team error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// Approve Vendor
+// ─────────────────────────────────────────
+// APPROVE VENDOR
+// ─────────────────────────────────────────
 exports.approveVendor = async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
-    // await Vendor.findByIdAndUpdate(req.params.id, { status: "approved" });
 
     vendor.status = "approved";
     await vendor.save();
 
+    sendMail({
+      to: vendor.email,
+      subject: "Vendor Account Approved ✅",
+      html: `
+        <h2>Hello ${vendor.businessName}!</h2>
+        <p>Your vendor account has been <b>approved</b> by the admin.</p>
+        <p>You can now log in, list your products, and start selling on the platform.</p>
+        <p>Welcome aboard!</p>
+      `,
+    }).catch((err) => console.error("Email error:", err.message));
 
-   if (vendor.email) {
-  sendMail({
-    to: vendor.email,
-    subject: "Vendor Approved ✅",
-    text: `Your vendorship "${vendor.businessName}" has been approved.`,
-    html:
-    `<h3>Hello ${vendor.businessName}</h3>
-     <p>Your vendorship has been <b>approved</b>.</p>`
-   }).catch(err => console.error("Email error nahi hua:", err.message));
-}
-
-    res.json({ message: "Vendor approved and email sent." });
+    res.json({ success: true, message: "Vendor approved" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to approve vendor" });
+    console.error("Approve vendor error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// reject vendor
+// ─────────────────────────────────────────
+// REJECT VENDOR
+// ─────────────────────────────────────────
 exports.rejectVendor = async (req, res) => {
   try {
     const vendor = await Vendor.findById(req.params.id);
     if (!vendor) return res.status(404).json({ error: "Vendor not found" });
 
-    vendor.status = "rejected";
-    await vendor.save()
-    
+    const { reason } = req.body; // optional rejection reason
 
+    vendor.status = "rejected";
+    await vendor.save();
 
     sendMail({
-      to:vendor.email,
-      subject:"Vendorship Rejected ❌",
-      text:`Your vendorship "${vendor.businessName}" has been rejected by admin.`,
-      html:
-      `<h3>Hello ${vendor.businessName}</h3>
-       <p>Your vendorship has been <b>rejected</b>. Please contact admin for more details.</p>`
-  }).catch(err => console.error("Email error:", err));
+      to: vendor.email,
+      subject: "Vendor Application Rejected ❌",
+      html: `
+        <h2>Hello ${vendor.businessName},</h2>
+        <p>Unfortunately, your vendor application has been <b>rejected</b>.</p>
+        ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
+        <p>Please contact admin for more details or to reapply.</p>
+      `,
+    }).catch((err) => console.error("Email error:", err.message));
 
-    // 5️⃣ Respond once
-    return res.json({ message: "vendor rejected and email sent." });
-
-
+    res.json({ success: true, message: "Vendor rejected" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to reject vendor" });
-  }
-}
-
-// Gives all vendor list 
-exports.getAllVendors = async (req, res) => {
-  try {
-    const vendors = await Vendor.find({})
-      .select("name category logo location createdAt")
-      .sort({ createdAt: -1 })
-      .lean();
-
-    const formattedVendors = vendors.map(vendor => ({
-      ...vendor,
-      logo: vendor.logo
-        ? `${req.protocol}://${req.get("host")}/${vendor.logo}`
-        : null
-    }));
-
-    res.json(formattedVendors);
-
-  } catch (err) {
-    console.error(err);
+    console.error("Reject vendor error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-
-exports.getPendingProducts = async (req, res) => {
-  const products = await Product.find({ status: "pending" });
-  res.json(products);
-};
-
+// ─────────────────────────────────────────
+// APPROVE PRODUCT
+// ─────────────────────────────────────────
 exports.approveProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
-
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+    if (!product) return res.status(404).json({ error: "Product not found" });
 
     product.status = "approved";
     await product.save();
 
-    res.json({ message: "Product approved successfully", product });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    // dynamically find owner — Vendor or Team
+    let ownerEmail = null;
+    let ownerName = null;
+
+    if (product.creatorModel === "Vendor") {
+      const vendor = await Vendor.findById(product.createdBy).select("email businessName").lean();
+      if (vendor) {
+        ownerEmail = vendor.email;
+        ownerName = vendor.businessName;
+      }
+    } else if (product.creatorModel === "Team") {
+      const team = await Team.findById(product.createdBy).select("email name").lean();
+      if (team) {
+        ownerEmail = team.email;
+        ownerName = team.name;
+      }
+    }
+
+    if (ownerEmail) {
+      sendMail({
+        to: ownerEmail,
+        subject: "Product Approved ✅",
+        html: `
+          <h2>Hello ${ownerName}!</h2>
+          <p>Your product <b>"${product.title}"</b> has been <b>approved</b> by the admin.</p>
+          <p>It is now live and visible to customers on the platform.</p>
+        `,
+      }).catch((err) => console.error("Email error:", err.message));
+    }
+
+    res.json({ success: true, message: "Product approved", product });
+  } catch (err) {
+    console.error("Approve product error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-// admin
+// ─────────────────────────────────────────
+// REJECT PRODUCT
+// ─────────────────────────────────────────
 exports.rejectProduct = async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
+    if (!product) return res.status(404).json({ error: "Product not found" });
 
-    if (!product) {
-      return res.status(404).json({ message: "Product not found" });
-    }
+    const { reason } = req.body; // optional rejection reason
 
     product.status = "rejected";
     await product.save();
 
-    res.json({ message: "Product rejected", product });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
+    // dynamically find owner — Vendor or Team
+    let ownerEmail = null;
+    let ownerName = null;
+
+    if (product.creatorModel === "Vendor") {
+      const vendor = await Vendor.findById(product.createdBy).select("email businessName").lean();
+      if (vendor) {
+        ownerEmail = vendor.email;
+        ownerName = vendor.businessName;
+      }
+    } else if (product.creatorModel === "Team") {
+      const team = await Team.findById(product.createdBy).select("email name").lean();
+      if (team) {
+        ownerEmail = team.email;
+        ownerName = team.name;
+      }
+    }
+
+    if (ownerEmail) {
+      sendMail({
+        to: ownerEmail,
+        subject: "Product Rejected ❌",
+        html: `
+          <h2>Hello ${ownerName},</h2>
+          <p>Your product <b>"${product.title}"</b> has been <b>rejected</b>.</p>
+          ${reason ? `<p><b>Reason:</b> ${reason}</p>` : ""}
+          <p>Please review your product details and resubmit or contact admin for help.</p>
+        `,
+      }).catch((err) => console.error("Email error:", err.message));
+    }
+
+    res.json({ success: true, message: "Product rejected", product });
+  } catch (err) {
+    console.error("Reject product error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
+// ─────────────────────────────────────────
+// FETCH VERIFICATION DOCS
+// ─────────────────────────────────────────
+exports.fetchVerificationDocs = async (req, res) => {
+  try {
+    const [teams, vendors] = await Promise.all([
+      Team.find({}, "name verificationDoc status createdAt").lean(),
+      Vendor.find({}, "businessName verificationDoc status createdAt").lean(),
+    ]);
 
-// verification docs
+    const documents = [
+      ...teams.map((team) => ({
+        ownerType: "Team",
+        ownerId: team._id,
+        ownerName: team.name,
+        fileUrl: team.verificationDoc,
+        status: team.status,
+        submittedAt: team.createdAt,
+      })),
+      ...vendors.map((vendor) => ({
+        ownerType: "Vendor",
+        ownerId: vendor._id,
+        ownerName: vendor.businessName,
+        fileUrl: vendor.verificationDoc,
+        status: vendor.status,
+        submittedAt: vendor.createdAt,
+      })),
+    ];
 
-exports.fetchVerificationDoc = async (req, res) => {
-  const teams = await Team.find(
-    {},
-    "name verificationDoc status createdAt"
-  );
-
-  const vendors = await Vendor.find(
-    {},
-    "businessName verificationDoc status createdAt"
-  );
-
-  const documents = [
-    ...teams.map(team => ({
-      ownerType: "Team",
-      ownerId: team._id,
-      ownerName: team.name,
-      fileUrl: team.verificationDoc,
-      status: team.status,
-      submittedAt: team.createdAt,
-    })),
-    ...vendors.map(vendor => ({
-      ownerType: "Vendor",
-      ownerId: vendor._id,
-      ownerName: vendor.businessName,
-      fileUrl: vendor.verificationDoc,
-      status: vendor.status,
-      submittedAt: vendor.createdAt,
-    }))
-  ];
-
-  res.json({ documents });
+    res.json({ success: true, documents });
+  } catch (err) {
+    console.error("Fetch verification docs error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
 };
 
-
+// ─────────────────────────────────────────
+// UPDATE VERIFICATION STATUS
+// ─────────────────────────────────────────
 exports.updateVerificationStatus = async (req, res) => {
-  const { ownerType, id } = req.params;
-  const { status } = req.body; // approved | rejected
+  try {
+    const { ownerType, id } = req.params;
+    const { status } = req.body;
 
-  const Model = ownerType === "Team" ? Team : Vendor;
+    if (!["approved", "rejected"].includes(status)) {
+      return res.status(400).json({ error: "Invalid status" });
+    }
 
-  const owner = await Model.findByIdAndUpdate(
-    id,
-    { status },
-    { new: true }
-  );
+    const Model = ownerType === "Team" ? Team : Vendor;
 
-  if (!owner) {
-    return res.status(404).json({ message: "Not found" });
+    const owner = await Model.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    );
+
+    if (!owner) return res.status(404).json({ error: "Not found" });
+
+    res.json({ success: true, message: `${ownerType} ${status}`, status: owner.status });
+  } catch (err) {
+    console.error("Update verification status error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
-
-  res.json({
-    message: `${ownerType} verification ${status}`,
-    status: owner.status,
-  });
 };
 
-
-// add content in admin content moderation
+// ─────────────────────────────────────────
+// ADD ADMIN CONTENT
+// ─────────────────────────────────────────
 exports.saveAdminContent = async (req, res) => {
   try {
     const { title, description, severity } = req.body;
 
-    if (!req.file) {
-      return res.status(400).json({ error: "File is required" });
-    }
+    if (!req.file) return res.status(400).json({ error: "File is required" });
 
     if (!["low", "medium", "high"].includes(severity)) {
-      return res.status(400).json({ error: "Invalid severity" });
+      return res.status(400).json({ error: "Invalid severity. Use low, medium or high" });
     }
 
-    // upload to cloudinary
     const uploadResult = await cloudinary.uploader.upload(req.file.path, {
       resource_type: "auto",
       folder: "admin-content",
     });
+    fs.unlinkSync(req.file.path);
 
-    // 🔥 SINGLE ADMIN (ONLY ONE EXISTS)
     const admin = await Admin.findOne({ role: "admin" });
-    if (!admin) {
-      return res.status(404).json({ error: "Admin not found" });
-    }
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
 
-    // 🔥 PUSH NEW CONTENT
     admin.content.push({
       fileUrl: uploadResult.secure_url,
-      fileType:
-        uploadResult.resource_type === "video" ? "video" : "image",
+      fileType: uploadResult.resource_type === "video" ? "video" : "image",
       title,
       description,
       severity,
-      // status defaults to pending
     });
 
     await admin.save();
 
     res.status(201).json({
+      success: true,
       message: "Content added successfully",
       content: admin.content[admin.content.length - 1],
     });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-
-// get fetch media at content moderation/admin
-exports.getAdminContent = async (req, res) => {
-  try {
-    // since only ONE admin exists
-    const admin = await Admin.findOne({ role: "admin" }).select("content");
-
-    if (!admin) {
-      return res.status(404).json({ error: "Admin not found" });
-    }
-
-    res.status(200).json({
-      success: true,
-      count: admin.content.length,
-      content: admin.content,
-    });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
-  }
-};
-
-// approve the admin
-
-exports.approveMedia = async (req, res) => {
-  try {
-    const { mediaId } = req.params;
-
-    const admin = await Admin.findOne(); // single admin
-    if (!admin) {
-      return res.status(404).json({ error: "Admin not found" });
-    }
-
-    const media = admin.content.id(mediaId);
-    if (!media) {
-      return res.status(404).json({ error: "Media not found" });
-    }
-
-    media.status = "approved";
-    await admin.save();
-
-    res.json({
-      success: true,
-      message: "Media approved",
-      media,
-    });
   } catch (err) {
-    console.error(err);
+    console.error("Save admin content error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// delete the media 
-exports.deleteAdminMedia = async (req, res) => {
+// ─────────────────────────────────────────
+// GET ADMIN CONTENT
+// ─────────────────────────────────────────
+exports.getAdminContent = async (req, res) => {
   try {
-    const { mediaId } = req.params;
+    const admin = await Admin.findOne({ role: "admin" }).select("content");
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
 
-    // Find the admin who owns this media (if multiple admins, you can use req.admin.id)
-    const admin = await Admin.findOne({ "content._id": mediaId });
-    if (!admin) return res.status(404).json({ error: "Media not found" });
-
-    // Remove the media from the content array
-    admin.content = admin.content.filter((item) => item._id.toString() !== mediaId);
-    await admin.save();
-
-    res.status(200).json({ message: "Media deleted successfully" });
+    res.json({ success: true, count: admin.content.length, content: admin.content });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: "Failed to delete media" });
+    console.error("Get admin content error:", err.message);
+    res.status(500).json({ error: "Server error" });
   }
 };
 
-
-// Update admin media info
-exports.updateAdminMedia = async (req, res) => {
-  const { mediaId } = req.params;
-  const { title, description, severity } = req.body;
-
-  if (!title || !severity) {
-    return res.status(400).json({ error: "Title and severity are required" });
-  }
-
+// ─────────────────────────────────────────
+// APPROVE ADMIN MEDIA
+// ─────────────────────────────────────────
+exports.approveMedia = async (req, res) => {
   try {
-    const admin = await Admin.findOne({ "content._id": mediaId });
+    const admin = await Admin.findOne();
+    if (!admin) return res.status(404).json({ error: "Admin not found" });
 
+    const media = admin.content.id(req.params.mediaId);
+    if (!media) return res.status(404).json({ error: "Media not found" });
+
+    media.status = "approved";
+    await admin.save();
+
+    res.json({ success: true, message: "Media approved", media });
+  } catch (err) {
+    console.error("Approve media error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// UPDATE ADMIN MEDIA
+// ─────────────────────────────────────────
+exports.updateAdminMedia = async (req, res) => {
+  try {
+    const { title, description, severity } = req.body;
+
+    if (!title || !severity) {
+      return res.status(400).json({ error: "Title and severity are required" });
+    }
+
+    const admin = await Admin.findOne({ "content._id": req.params.mediaId });
     if (!admin) return res.status(404).json({ error: "Media not found" });
 
-    // Find the media in content array
-    const media = admin.content.id(mediaId);
+    const media = admin.content.id(req.params.mediaId);
     media.title = title;
     media.description = description;
     media.severity = severity.toLowerCase();
 
     await admin.save();
 
-    res.json({ message: "Media updated successfully", content: media });
+    res.json({ success: true, message: "Media updated", content: media });
   } catch (err) {
-    console.error(err);
+    console.error("Update admin media error:", err.message);
+    res.status(500).json({ error: "Server error" });
+  }
+};
+
+// ─────────────────────────────────────────
+// DELETE ADMIN MEDIA
+// ─────────────────────────────────────────
+exports.deleteAdminMedia = async (req, res) => {
+  try {
+    const admin = await Admin.findOne({ "content._id": req.params.mediaId });
+    if (!admin) return res.status(404).json({ error: "Media not found" });
+
+    admin.content = admin.content.filter(
+      (item) => item._id.toString() !== req.params.mediaId
+    );
+    await admin.save();
+
+    res.json({ success: true, message: "Media deleted" });
+  } catch (err) {
+    console.error("Delete admin media error:", err.message);
     res.status(500).json({ error: "Server error" });
   }
 };
